@@ -50,6 +50,10 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
+# ZTA Auth Service
+AUTH_URL = os.getenv("ZTA_AUTH_URL", "")  # e.g., http://zta-auth:8180
+AUTH_SECRET = os.getenv("ZTA_AGENT_SECRET", "")
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(SUPERVISOR_ID)
 
@@ -292,7 +296,12 @@ async def lifespan(app: FastAPI):
             base_url=url,
             agent_id=SUPERVISOR_ID,
             agent_name=SUPERVISOR_NAME,
+            auth_url=AUTH_URL if AUTH_URL else None,
+            auth_secret=AUTH_SECRET if AUTH_SECRET else None,
         )
+        # Acquire JWT if auth service is configured
+        if AUTH_URL:
+            await entry.client.acquire_token()
         try:
             entry.card = await entry.client.get_agent_card()
             entry.healthy = True

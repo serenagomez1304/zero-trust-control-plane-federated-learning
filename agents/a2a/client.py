@@ -59,7 +59,7 @@ class A2AClient:
     Async A2A protocol client.
     
     Handles Agent Card discovery, task lifecycle operations,
-    and ZTA header propagation.
+    and ZTA header propagation. Optionally acquires JWT from auth service.
     
     Args:
         base_url: Base URL of the remote A2A agent
@@ -67,6 +67,8 @@ class A2AClient:
         agent_name: Human-readable name (for ZTA headers)
         timeout: Request timeout in seconds
         extra_headers: Additional headers to send on every request
+        auth_url: Optional URL of the ZTA auth service for JWT tokens
+        auth_secret: Shared secret for authenticating with the auth service
     """
 
     def __init__(
@@ -76,11 +78,16 @@ class A2AClient:
         agent_name: str = "A2A Client",
         timeout: float = 60.0,
         extra_headers: Optional[Dict[str, str]] = None,
+        auth_url: Optional[str] = None,
+        auth_secret: Optional[str] = None,
     ):
         self.base_url = base_url.rstrip("/")
         self.agent_id = agent_id
         self.agent_name = agent_name
         self.timeout = timeout
+        self.auth_url = auth_url
+        self.auth_secret = auth_secret
+        self._jwt_token: Optional[str] = None
 
         # Default headers — ZTA identity propagation
         self._headers = {
@@ -95,6 +102,31 @@ class A2AClient:
 
         self._client: Optional[httpx.AsyncClient] = None
         self._agent_card: Optional[AgentCard] = None
+
+    async def acquire_token(self) -> Optional[str]:
+        """Acquire a JWT token from the auth service."""
+        if not self.auth_url or not self.auth_secret:
+            return None
+        
+        await self._ensure_client()
+        try:
+            response = await self._client.post(
+                f"{self.auth_url}/token",
+                json={"agent_id": self.agent_id, "secret": self.auth_secret},
+            )
+            response.raise_for_status()
+            data = response.json()
+            self._jwt_token = data["access_token"]
+            self._headers["Authorization"] = f"Bearer {self._jwt_token}"
+            # Recreate client with updated headers
+            if self._client:
+                await self._client.aclose()
+                self._client = httpx.AsyncClient(timeout=self.timeout, headers=self._headers)
+            logger.info(f"JWT acquired for {self.agent_id} (expires_in={data['expires_in']}s)")
+            return self._jwt_token
+        except Exception as e:
+            logger.warning(f"Failed to acquire JWT from {self.auth_url}: {e}")
+            return None
 
     # =========================================================================
     # Context Manager
