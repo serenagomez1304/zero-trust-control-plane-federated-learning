@@ -139,7 +139,7 @@ services:
       - PORT=8091
       - AGENT_ID=airline-agent
       - AGENT_NAME=Airline Agent
-      - AIRLINE_MCP_URL=http://airline-mcp:8010
+      - AIRLINE_MCP_URL=http://airline-mcp-sidecar:10000
       - GROQ_API_KEY=${GROQ_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -161,7 +161,7 @@ services:
       - PORT=8092
       - AGENT_ID=hotel-agent
       - AGENT_NAME=Hotel Agent
-      - HOTEL_MCP_URL=http://hotel-mcp:8011
+      - HOTEL_MCP_URL=http://hotel-mcp-sidecar:10000
       - GROQ_API_KEY=${GROQ_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -183,7 +183,7 @@ services:
       - PORT=8093
       - AGENT_ID=car-rental-agent
       - AGENT_NAME=Car Rental Agent
-      - CAR_RENTAL_MCP_URL=http://car-rental-mcp:8012
+      - CAR_RENTAL_MCP_URL=http://car-rental-mcp-sidecar:10000
       - GROQ_API_KEY=${GROQ_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}

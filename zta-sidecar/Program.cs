@@ -195,9 +195,10 @@ if (allowedSources.Length > 0)
 {
     app.Use(async (context, next) =>
     {
-        // Skip health checks
+        // Skip health checks and sidecar endpoints
         if (context.Request.Path.StartsWithSegments("/health") ||
-            context.Request.Path.StartsWithSegments("/.well-known"))
+            context.Request.Path.StartsWithSegments("/.well-known") ||
+            context.Request.Path.StartsWithSegments("/sidecar"))
         {
             await next();
             return;
