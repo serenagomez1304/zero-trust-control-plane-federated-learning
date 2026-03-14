@@ -4,14 +4,14 @@ Airline MCP Server - ZTA Testbed Component
 MCP server that wraps the Airline Reservation Service, exposing flight search
 and booking capabilities as tools for LLM agents.
 
-Uses the official MCP Python SDK (FastMCP) for standardized protocol compliance.
+Uses FastMCP with SSE transport for agent connectivity.
 """
 
 import os
 import httpx
 import logging
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from mcp.server.fastmcp import FastMCP, Context
 
@@ -54,7 +54,7 @@ async def call_airline_service(
     
     request_headers = {
         "Content-Type": "application/json",
-        "X-Request-ID": f"mcp-{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}",
+        "X-Request-ID": f"mcp-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
     }
     if headers:
         request_headers.update(headers)
@@ -124,7 +124,6 @@ async def search_flights(
     if "error" in result:
         return f"Error searching flights: {result['error']}"
     
-    # Format the response for the LLM
     flights = result.get("flights", [])
     if not flights:
         return f"No flights found from {origin} to {destination} on {departure_date} in {cabin_class} class."
@@ -195,12 +194,12 @@ async def book_flight(
     booking = result["booking"]
     flight = booking.get("flight_details", {})
     
-    output = "✅ Flight Booked Successfully!\n\n"
+    output = "Flight Booked Successfully!\n\n"
     output += f"Confirmation Number (PNR): {booking['pnr']}\n"
     output += f"Booking ID: {booking['booking_id']}\n"
     output += f"Status: {booking['status']}\n\n"
     output += f"Flight: {flight.get('airline', 'N/A')} {flight.get('flight_number', 'N/A')}\n"
-    output += f"Route: {flight.get('origin', 'N/A')} → {flight.get('destination', 'N/A')}\n"
+    output += f"Route: {flight.get('origin', 'N/A')} -> {flight.get('destination', 'N/A')}\n"
     output += f"Departure: {flight.get('departure_time', 'N/A')}\n"
     output += f"Arrival: {flight.get('arrival_time', 'N/A')}\n\n"
     output += f"Passenger: {passenger_first_name} {passenger_last_name}\n"
@@ -240,7 +239,7 @@ async def get_booking(booking_id: str) -> str:
     output += f"Booking ID: {booking['booking_id']}\n"
     output += f"Status: {booking['status']}\n\n"
     output += f"Flight: {flight.get('airline', 'N/A')} {flight.get('flight_number', 'N/A')}\n"
-    output += f"Route: {flight.get('origin', 'N/A')} → {flight.get('destination', 'N/A')}\n"
+    output += f"Route: {flight.get('origin', 'N/A')} -> {flight.get('destination', 'N/A')}\n"
     output += f"Departure: {flight.get('departure_time', 'N/A')}\n\n"
     output += f"Passengers: {len(booking.get('passengers', []))}\n"
     output += f"Total Price: ${booking['total_price']:.2f} {booking['currency']}\n"
@@ -277,7 +276,7 @@ async def get_booking_by_pnr(pnr: str) -> str:
     output += f"Booking ID: {booking['booking_id']}\n"
     output += f"Status: {booking['status']}\n\n"
     output += f"Flight: {flight.get('airline', 'N/A')} {flight.get('flight_number', 'N/A')}\n"
-    output += f"Route: {flight.get('origin', 'N/A')} → {flight.get('destination', 'N/A')}\n"
+    output += f"Route: {flight.get('origin', 'N/A')} -> {flight.get('destination', 'N/A')}\n"
     output += f"Departure: {flight.get('departure_time', 'N/A')}\n\n"
     output += f"Passengers: {len(booking.get('passengers', []))}\n"
     output += f"Total Price: ${booking['total_price']:.2f} {booking['currency']}\n"
@@ -304,7 +303,7 @@ async def cancel_booking(booking_id: str) -> str:
         return f"Error cancelling booking: {result['error']}"
     
     if result.get("success"):
-        return f"✅ Booking {booking_id} has been cancelled successfully.\nPNR: {result.get('pnr', 'N/A')}"
+        return f"Booking {booking_id} has been cancelled successfully.\nPNR: {result.get('pnr', 'N/A')}"
     else:
         return f"Failed to cancel booking: {result.get('message', 'Unknown error')}"
 
@@ -335,17 +334,15 @@ async def list_airports() -> str:
 
 
 # =============================================================================
-# MCP Resources (optional - for exposing data to LLMs)
+# MCP Resources
 # =============================================================================
 
 @mcp.resource("airports://list")
 async def airports_resource() -> str:
     """Provide list of supported airports as a resource."""
     result = await call_airline_service("GET", "/api/v1/airports")
-    
     if "error" in result:
         return "Error loading airports"
-    
     airports = result.get("airports", [])
     return "\n".join([f"{a['code']}: {a['name']}" for a in airports])
 
@@ -354,10 +351,8 @@ async def airports_resource() -> str:
 async def airlines_resource() -> str:
     """Provide list of airlines as a resource."""
     result = await call_airline_service("GET", "/api/v1/airlines")
-    
     if "error" in result:
         return "Error loading airlines"
-    
     airlines = result.get("airlines", [])
     return "\n".join([f"{a['code']}: {a['name']}" for a in airlines])
 
@@ -373,15 +368,13 @@ if __name__ == "__main__":
     logger.info(f"Starting Airline MCP Server on port {port}")
     logger.info(f"Airline Service URL: {AIRLINE_SERVICE_URL}")
     
-    # Check command line args for transport type
     if len(sys.argv) > 1 and sys.argv[1] == "stdio":
-        # Run with stdio transport (for CLI/subprocess usage)
         logger.info("Running with stdio transport")
         mcp.run(transport="stdio")
     else:
-        # Run with streamable HTTP transport (for network access)
-        logger.info(f"Running with streamable-http transport on port {port}")
+        # SSE transport for agent connectivity via MCP client SDK
+        logger.info(f"Running with SSE transport on port {port}")
         mcp.settings.port = port
         mcp.settings.host = "0.0.0.0"
-        mcp.settings.transport_security = False  # Disable host validation
-        mcp.run(transport="streamable-http")
+        mcp.settings.transport_security = False  # Allow Docker hostnames (airline-mcp, etc.)
+        mcp.run(transport="sse")

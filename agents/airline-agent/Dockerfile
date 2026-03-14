@@ -2,18 +2,18 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
-# Install curl for healthcheck
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for caching
-COPY requirements.txt .
+# Copy and install requirements
+COPY airline-agent/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY agent.py .
+# Copy shared A2A library
+COPY __init__.py /app/agents/__init__.py
+COPY a2a/ /app/agents/a2a/
 
-# Expose port
+# Copy agent code
+COPY airline-agent/agent.py .
+
 EXPOSE 8091
-
-# Run the agent
 CMD ["python", "agent.py"]

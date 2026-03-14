@@ -1,10 +1,11 @@
 # =============================================================================
-# ZTA Policy for Envoy ext_authz gRPC Integration
+# ZTA Policy for .NET YARP Sidecar Integration
 # =============================================================================
-# OPA's envoy plugin expects package "envoy.authz" with rule "allow"
+# OPA Policy Decision Point — called by sidecar PolicyEngine middleware
+# POST /v1/data/zta/authz/allow  { "input": { agent_id, path, method, component, host } }
 # =============================================================================
 
-package envoy.authz
+package zta.authz
 
 import future.keywords.if
 import future.keywords.in
@@ -13,13 +14,15 @@ import future.keywords.in
 default allow := false
 
 # =============================================================================
-# Agent Registry
+# Agent Registry — defines allowed communication paths
 # =============================================================================
 
 agent_registry := {
-    "travel-planner": {
+    "supervisor-agent": {
         "type": "supervisor",
-        "allowed_targets": ["airline-agent", "hotel-agent", "car-rental-agent", "itinerary-service"]
+        "allowed_targets": [
+            "airline-agent", "hotel-agent", "car-rental-agent"
+        ]
     },
     "airline-agent": {
         "type": "worker",
@@ -38,77 +41,100 @@ agent_registry := {
     }
 }
 
-# Hostname to service mapping
-host_to_service := {
-    "airline-mcp-envoy": "airline-mcp",
-    "hotel-mcp-envoy": "hotel-mcp",
-    "car-rental-mcp-envoy": "car-rental-mcp",
-    "airline-mcp-envoy:10000": "airline-mcp",
-    "hotel-mcp-envoy:10000": "hotel-mcp",
-    "car-rental-mcp-envoy:10000": "car-rental-mcp"
+# Component name to service mapping
+component_to_service := {
+    "airline-agent-sidecar": "airline-agent",
+    "hotel-agent-sidecar": "hotel-agent",
+    "car-rental-agent-sidecar": "car-rental-agent",
+    "airline-mcp-sidecar": "airline-mcp",
+    "hotel-mcp-sidecar": "hotel-mcp",
+    "car-rental-mcp-sidecar": "car-rental-mcp",
+    "supervisor-sidecar": "supervisor-agent"
 }
 
 # =============================================================================
-# Input parsing - Envoy gRPC sends different structure
+# Input extraction
 # =============================================================================
 
-# Get headers from either HTTP or gRPC format
-headers := input.attributes.request.http.headers
+agent_id := input.agent_id
+request_path := input.path
+request_method := input.method
+component := input.component
 
-# Get agent ID
-agent_id := headers["x-agent-id"]
-
-# Get host
-raw_host := input.attributes.request.http.host
-
-# Get target service
+# Resolve the target service from the sidecar component name
 target_service := service if {
-    service := host_to_service[raw_host]
-} else := service if {
-    host_no_port := split(raw_host, ":")[0]
-    service := host_to_service[host_no_port]
-} else := raw_host
-
-# Get path
-request_path := input.attributes.request.http.path
-
-# =============================================================================
-# Helper checks
-# =============================================================================
-
-is_health_check if {
-    request_path == "/health"
-}
-
-is_tool_discovery if {
-    request_path == "/tools"
-}
-
-is_registered_agent if {
-    agent_registry[agent_id]
-}
-
-target_is_allowed if {
-    agent := agent_registry[agent_id]
-    target_service in agent.allowed_targets
-}
+    service := component_to_service[component]
+} else := component
 
 # =============================================================================
 # Allow Rules
 # =============================================================================
 
-# Allow health checks
+# Always allow health checks
 allow if {
-    is_health_check
+    request_path == "/health"
 }
 
-# Allow tool discovery
+# Always allow A2A health
 allow if {
-    is_tool_discovery
+    request_path == "/a2a/health"
+}
+
+# Always allow Agent Card discovery
+allow if {
+    request_path == "/.well-known/agent.json"
+    request_method == "GET"
+}
+
+# Always allow sidecar health
+allow if {
+    startswith(request_path, "/sidecar/")
 }
 
 # Allow registered agents calling allowed targets
 allow if {
-    is_registered_agent
-    target_is_allowed
+    agent_registry[agent_id]
+    agent := agent_registry[agent_id]
+    target_service in agent.allowed_targets
+}
+
+# Allow supervisor to access A2A endpoints on worker agents
+allow if {
+    agent_id == "supervisor-agent"
+    request_path == "/a2a"
+}
+
+# Allow supervisor to access agent card endpoints
+allow if {
+    agent_id == "supervisor-agent"
+    request_path == "/.well-known/agent.json"
+}
+
+# Allow workers to access MCP endpoints
+allow if {
+    agent_registry[agent_id]
+    agent := agent_registry[agent_id]
+    agent.type == "worker"
+    startswith(request_path, "/sse")
+}
+
+allow if {
+    agent_registry[agent_id]
+    agent := agent_registry[agent_id]
+    agent.type == "worker"
+    startswith(request_path, "/mcp")
+}
+
+# =============================================================================
+# Deny reasons (for debugging)
+# =============================================================================
+
+deny_reason := "agent not registered" if {
+    not agent_registry[agent_id]
+}
+
+deny_reason := "target not allowed for agent" if {
+    agent_registry[agent_id]
+    agent := agent_registry[agent_id]
+    not target_service in agent.allowed_targets
 }

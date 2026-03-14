@@ -9,7 +9,7 @@ import os
 import httpx
 import logging
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 from mcp.server.fastmcp import FastMCP
 
@@ -50,7 +50,7 @@ async def call_car_rental_service(
     
     headers = {
         "Content-Type": "application/json",
-        "X-Request-ID": f"mcp-{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}",
+        "X-Request-ID": f"mcp-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
     }
     
     try:
@@ -438,8 +438,8 @@ if __name__ == "__main__":
         mcp.run(transport="stdio")
     else:
         # Run with streamable HTTP transport (for network access)
-        logger.info(f"Running with streamable-http transport on port {port}")
+        logger.info(f"Running with SSE transport on port {port}")
         mcp.settings.port = port
         mcp.settings.host = "0.0.0.0"
         mcp.settings.transport_security = False  # Disable host validation
-        mcp.run(transport="streamable-http")
+        mcp.run(transport="sse")

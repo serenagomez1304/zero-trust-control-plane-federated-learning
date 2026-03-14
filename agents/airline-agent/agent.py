@@ -1,605 +1,147 @@
 """
-Airline Agent Microservice
-Handles all airline-related tasks: flight search, booking, cancellation.
-Connects to airline-mcp server for tool execution.
+Airline Agent — ZTA Multi-Agent Testbed
+========================================
+A2A Server + LangGraph ReAct + MCP Client (SSE) + Groq LLM.
+Creates a fresh ReAct agent per request to ensure MCP tools are properly bound.
 """
 
-import os
-import sys
-import json
-import logging
-from typing import Dict, Any, List, Optional
-from datetime import datetime
-
-# Add parent directory to path for base_agent import
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from pydantic import BaseModel
-import httpx
-
-# Import LangChain components for LLM reasoning
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain_core.prompts import ChatPromptTemplate
-
-# =============================================================================
-# Agent Configuration
-# =============================================================================
-
-# MCP Server URL - connects through PEP in ZTA mode
-MCP_SERVER_URL = os.getenv("AIRLINE_MCP_URL", "http://airline-mcp:8010")
-
-# LLM Configuration
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "anthropic")
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-
-# mTLS Configuration
-CA_CERT_PATH = os.getenv("CA_CERT_PATH", "")
-CLIENT_CERT_PATH = os.getenv("CLIENT_CERT_PATH", "")
-CLIENT_KEY_PATH = os.getenv("CLIENT_KEY_PATH", "")
-
-# Agent identity for ZTA
-AGENT_ID = "airline-agent"
-AGENT_NAME = "Airline Agent"
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(AGENT_ID)
-
-# =============================================================================
-# Data Models
-# =============================================================================
-
-class AgentRequest(BaseModel):
-    """Request from supervisor to agent"""
-    message: str
-    context: Optional[Dict[str, Any]] = {}
-    conversation_id: Optional[str] = None
-
-class AgentResponse(BaseModel):
-    """Response from agent to supervisor"""
-    success: bool
-    message: str
-    data: Optional[Dict[str, Any]] = None
-    tools_called: List[str] = []
-    error: Optional[str] = None
-
-# =============================================================================
-# Tool Definitions
-# =============================================================================
-
-AIRLINE_TOOLS = [
-    {
-        "name": "list_airports",
-        "description": "List all available airports",
-        "parameters": {}
-    },
-    {
-        "name": "search_flights",
-        "description": "Search for flights between airports",
-        "parameters": {
-            "origin": "Origin airport code (e.g., JFK)",
-            "destination": "Destination airport code (e.g., LAX)",
-            "date": "Travel date (YYYY-MM-DD format, optional)"
-        }
-    },
-    {
-        "name": "get_flight_details",
-        "description": "Get detailed information about a specific flight",
-        "parameters": {
-            "flight_id": "The flight ID"
-        }
-    },
-    {
-        "name": "book_flight",
-        "description": "Book a flight for passengers",
-        "parameters": {
-            "flight_id": "The flight ID to book",
-            "passengers": "List of passenger names"
-        }
-    },
-    {
-        "name": "get_booking",
-        "description": "Retrieve booking details by confirmation code",
-        "parameters": {
-            "confirmation_code": "The booking confirmation code"
-        }
-    },
-    {
-        "name": "cancel_booking",
-        "description": "Cancel an existing booking",
-        "parameters": {
-            "confirmation_code": "The booking confirmation code to cancel"
-        }
-    }
-]
-
-# =============================================================================
-# Airline Agent Implementation
-# =============================================================================
-
-class AirlineAgent:
-    """
-    Airline Agent - handles flight search, booking, and management.
-    """
-    
-    def __init__(self):
-        self.agent_id = AGENT_ID
-        self.agent_name = AGENT_NAME
-        self.mcp_server_url = MCP_SERVER_URL
-        self.mcp_client: Optional[httpx.AsyncClient] = None
-        self.mcp_session_id: Optional[str] = None  # MCP session ID
-        self.llm = None
-        self.tools = AIRLINE_TOOLS
-        self.metrics = {
-            "requests_total": 0,
-            "requests_success": 0,
-            "requests_failed": 0,
-            "tools_called": 0,
-            "start_time": datetime.utcnow().isoformat()
-        }
-        logger.info(f"AirlineAgent created, MCP URL: {self.mcp_server_url}")
-    
-    async def initialize(self):
-        """Initialize the agent - connect to MCP and setup LLM"""
-        logger.info(f"Initializing {self.agent_name}...")
-        
-        # Configure mTLS if certificates are provided
-        ssl_context = None
-        if CA_CERT_PATH and CLIENT_CERT_PATH and CLIENT_KEY_PATH:
-            if os.path.exists(CA_CERT_PATH) and os.path.exists(CLIENT_CERT_PATH) and os.path.exists(CLIENT_KEY_PATH):
-                import ssl
-                ssl_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-                ssl_context.load_verify_locations(CA_CERT_PATH)
-                ssl_context.load_cert_chain(CLIENT_CERT_PATH, CLIENT_KEY_PATH)
-                logger.info(f"mTLS enabled with certificates from {CLIENT_CERT_PATH}")
-            else:
-                logger.warning("mTLS cert paths configured but files not found, using plain HTTP")
-        
-        # Setup MCP client with ZTA identity headers
-        self.mcp_client = httpx.AsyncClient(
-            timeout=60.0,
-            headers={
-                "x-agent-id": self.agent_id,
-                "x-agent-name": self.agent_name
-            },
-            verify=ssl_context if ssl_context else True
-        )
-        
-        # Initialize MCP session
-        await self._init_mcp_session()
-        
-        # Setup LLM
-        self._setup_llm()
-        
-        logger.info(f"{self.agent_name} initialized with {len(self.tools)} tools")
-    
-    async def _init_mcp_session(self):
-        """Initialize MCP session with the server"""
-        try:
-            response = await self.mcp_client.post(
-                f"{self.mcp_server_url}/mcp",
-                json={
-                    "jsonrpc": "2.0",
-                    "method": "initialize",
-                    "params": {
-                        "protocolVersion": "2024-11-05",
-                        "capabilities": {},
-                        "clientInfo": {"name": self.agent_id, "version": "1.0.0"}
-                    },
-                    "id": f"{self.agent_id}-init"
-                },
-                headers={
-                    "Accept": "application/json, text/event-stream",
-                    "Content-Type": "application/json"
-                }
-            )
-            
-            # Extract session ID from response header
-            self.mcp_session_id = response.headers.get("mcp-session-id")
-            
-            if self.mcp_session_id:
-                logger.info(f"MCP session initialized: {self.mcp_session_id}")
-            else:
-                logger.warning("MCP session ID not found in response headers")
-                
-            # Check response content
-            if response.status_code == 200:
-                logger.info(f"Connected to MCP server at {self.mcp_server_url}")
-            else:
-                logger.warning(f"MCP init returned {response.status_code}")
-                
-        except Exception as e:
-            logger.warning(f"Could not initialize MCP session: {e}")
-    
-    def _setup_llm(self):
-        """Setup the LLM based on available API keys"""
-        if ANTHROPIC_API_KEY:
-            from langchain_anthropic import ChatAnthropic
-            self.llm = ChatAnthropic(
-                model="claude-3-5-sonnet-20241022",
-                api_key=ANTHROPIC_API_KEY,
-                max_tokens=4096
-            )
-            logger.info("Using Anthropic Claude")
-        elif OPENAI_API_KEY:
-            from langchain_openai import ChatOpenAI
-            self.llm = ChatOpenAI(
-                model="gpt-4o-mini",
-                api_key=OPENAI_API_KEY
-            )
-            logger.info("Using OpenAI GPT-4")
-        elif GROQ_API_KEY:
-            from langchain_groq import ChatGroq
-            self.llm = ChatGroq(
-                model="llama-3.3-70b-versatile",
-                api_key=GROQ_API_KEY
-            )
-            logger.info("Using Groq")
-        else:
-            logger.warning("No LLM API key found - agent will have limited functionality")
-            self.llm = None
-    
-    async def shutdown(self):
-        """Cleanup on shutdown"""
-        logger.info(f"Shutting down {self.agent_name}...")
-        if self.mcp_client:
-            await self.mcp_client.aclose()
-    
-    async def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
-        """Call a tool via the MCP server"""
-        logger.info(f"Calling tool: {tool_name} with args: {arguments}")
-        
-        start_time = datetime.utcnow()
-        self.metrics["tools_called"] += 1
-        
-        # Re-initialize session if needed
-        if not self.mcp_session_id:
-            await self._init_mcp_session()
-        
-        try:
-            # Build headers with session ID
-            headers = {
-                "x-agent-id": self.agent_id,
-                "Accept": "application/json, text/event-stream",
-                "Content-Type": "application/json"
-            }
-            if self.mcp_session_id:
-                headers["mcp-session-id"] = self.mcp_session_id
-            
-            # Make MCP tool call
-            response = await self.mcp_client.post(
-                f"{self.mcp_server_url}/mcp",
-                json={
-                    "jsonrpc": "2.0",
-                    "method": "tools/call",
-                    "params": {
-                        "name": tool_name,
-                        "arguments": arguments
-                    },
-                    "id": f"{self.agent_id}-{datetime.utcnow().timestamp()}"
-                },
-                headers=headers
-            )
-            
-            duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
-            
-            if response.status_code == 200:
-                # Parse SSE response
-                text = response.text
-                if text.startswith("event:"):
-                    # Extract JSON from SSE format
-                    for line in text.split("\n"):
-                        if line.startswith("data:"):
-                            json_data = line[5:].strip()
-                            if json_data:
-                                try:
-                                    result = json.loads(json_data)
-                                    logger.info(f"Tool {tool_name} succeeded in {duration_ms:.2f}ms")
-                                    if "result" in result:
-                                        return result["result"]
-                                    elif "error" in result:
-                                        return {"error": result["error"].get("message", str(result["error"]))}
-                                    return result
-                                except json.JSONDecodeError as e:
-                                    logger.error(f"Failed to parse SSE response: {e}")
-                                    return {"error": f"Invalid JSON response: {json_data[:100]}"}
-                    return {"error": "No data in SSE response"}
-                else:
-                    result = response.json()
-                    logger.info(f"Tool {tool_name} succeeded in {duration_ms:.2f}ms")
-                    return result.get("result", result)
-            else:
-                logger.error(f"Tool {tool_name} failed: {response.status_code} - {response.text}")
-                # Session might have expired, clear it
-                if response.status_code == 400:
-                    self.mcp_session_id = None
-                return {"error": f"Tool call failed: {response.status_code}"}
-                
-        except Exception as e:
-            logger.error(f"Error calling tool {tool_name}: {e}")
-            return {"error": str(e)}
-    
-    async def process_request(self, request: AgentRequest) -> AgentResponse:
-        """
-        Process a request from the supervisor.
-        Uses LLM to understand intent and call appropriate tools.
-        """
-        logger.info(f"Processing request: {request.message[:100]}...")
-        tools_called = []
-        
-        try:
-            # Simple intent detection and tool routing
-            message_lower = request.message.lower()
-            
-            # Route based on keywords
-            if "airport" in message_lower and ("list" in message_lower or "available" in message_lower or "show" in message_lower):
-                result = await self.call_tool("list_airports", {})
-                tools_called.append("list_airports")
-                return AgentResponse(
-                    success=True,
-                    message="Here are the available airports",
-                    data={"airports": result},
-                    tools_called=tools_called
-                )
-            
-            elif "search" in message_lower and "flight" in message_lower:
-                # Extract origin/destination from context or message
-                origin = request.context.get("origin", "JFK")
-                destination = request.context.get("destination", "LAX")
-                departure_date = request.context.get("departure_date") or request.context.get("date", "2026-02-15")
-                passengers = request.context.get("passengers", 1)
-                cabin_class = request.context.get("cabin_class", "economy")
-                
-                args = {
-                    "origin": origin,
-                    "destination": destination,
-                    "departure_date": departure_date,
-                    "passengers": passengers,
-                    "cabin_class": cabin_class
-                }
-                
-                result = await self.call_tool("search_flights", args)
-                tools_called.append("search_flights")
-                return AgentResponse(
-                    success=True,
-                    message=f"Found flights from {origin} to {destination}",
-                    data={"flights": result},
-                    tools_called=tools_called
-                )
-            
-            elif "book" in message_lower and "flight" in message_lower:
-                flight_id = request.context.get("flight_id")
-                passengers = request.context.get("passengers", ["Guest"])
-                
-                if not flight_id:
-                    return AgentResponse(
-                        success=False,
-                        message="Please provide a flight_id to book",
-                        error="missing_flight_id"
-                    )
-                
-                result = await self.call_tool("book_flight", {
-                    "flight_id": flight_id,
-                    "passengers": passengers
-                })
-                tools_called.append("book_flight")
-                return AgentResponse(
-                    success=True,
-                    message="Flight booked successfully",
-                    data={"booking": result},
-                    tools_called=tools_called
-                )
-            
-            elif "cancel" in message_lower:
-                confirmation_code = request.context.get("confirmation_code")
-                if not confirmation_code:
-                    return AgentResponse(
-                        success=False,
-                        message="Please provide a confirmation_code to cancel",
-                        error="missing_confirmation_code"
-                    )
-                
-                result = await self.call_tool("cancel_booking", {
-                    "confirmation_code": confirmation_code
-                })
-                tools_called.append("cancel_booking")
-                return AgentResponse(
-                    success=True,
-                    message="Booking cancelled",
-                    data={"result": result},
-                    tools_called=tools_called
-                )
-            
-            elif "booking" in message_lower or "reservation" in message_lower:
-                confirmation_code = request.context.get("confirmation_code")
-                if confirmation_code:
-                    result = await self.call_tool("get_booking", {
-                        "confirmation_code": confirmation_code
-                    })
-                    tools_called.append("get_booking")
-                    return AgentResponse(
-                        success=True,
-                        message="Booking details retrieved",
-                        data={"booking": result},
-                        tools_called=tools_called
-                    )
-            
-            elif "flight" in message_lower and "detail" in message_lower:
-                flight_id = request.context.get("flight_id")
-                if flight_id:
-                    result = await self.call_tool("get_flight_details", {
-                        "flight_id": flight_id
-                    })
-                    tools_called.append("get_flight_details")
-                    return AgentResponse(
-                        success=True,
-                        message="Flight details retrieved",
-                        data={"flight": result},
-                        tools_called=tools_called
-                    )
-            
-            # If no specific intent matched, use LLM if available
-            if self.llm:
-                # Use LLM for more complex reasoning
-                response_text = await self._llm_process(request.message, request.context)
-                return AgentResponse(
-                    success=True,
-                    message=response_text,
-                    tools_called=tools_called
-                )
-            
-            # Fallback response
-            return AgentResponse(
-                success=True,
-                message=f"I'm the Airline Agent. I can help with: listing airports, searching flights, booking flights, and managing reservations. Please be more specific about what you need.",
-                data={"available_tools": [t["name"] for t in self.tools]}
-            )
-            
-        except Exception as e:
-            logger.exception(f"Error processing request: {e}")
-            return AgentResponse(
-                success=False,
-                message="An error occurred while processing your request",
-                error=str(e),
-                tools_called=tools_called
-            )
-    
-    async def _llm_process(self, message: str, context: Dict[str, Any]) -> str:
-        """Use LLM for complex reasoning"""
-        system_prompt = f"""You are the Airline Agent, specialized in flight bookings and airline services.
-
-Available tools:
-{[t['name'] + ': ' + t['description'] for t in self.tools]}
-
-Context: {context}
-
-Respond helpfully to the user's request about airline services."""
-
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=message)
-        ]
-        
-        response = await self.llm.ainvoke(messages)
-        return response.content
-    
-    def health_check(self) -> Dict[str, Any]:
-        """Return health status"""
-        return {
-            "status": "healthy",
-            "agent_id": self.agent_id,
-            "agent_name": self.agent_name,
-            "mcp_server": self.mcp_server_url,
-            "tools_count": len(self.tools),
-            "llm_available": self.llm is not None,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-    
-    def get_metrics(self) -> Dict[str, Any]:
-        """Return agent metrics"""
-        return {
-            **self.metrics,
-            "agent_id": self.agent_id,
-            "uptime_seconds": (
-                datetime.utcnow() - datetime.fromisoformat(self.metrics["start_time"])
-            ).total_seconds()
-        }
-    
-    def get_tools(self) -> List[Dict[str, Any]]:
-        """Return list of available tools"""
-        return self.tools
-
-
-# =============================================================================
-# FastAPI Application
-# =============================================================================
-
-from fastapi import FastAPI, Request
+import os, sys, logging
+from typing import Optional
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 
-# Create agent instance
-agent = AirlineAgent()
+from fastapi import FastAPI
+from langgraph.prebuilt import create_react_agent
+from langchain_mcp_adapters.client import MultiServerMCPClient
+from langchain_core.messages import HumanMessage, SystemMessage
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from agents.a2a import (
+    A2AServer, AgentCard, AgentSkill, AgentCapabilities, AgentAuthentication,
+    Task, TaskState, TaskStatus, Message, TextPart, Artifact,
+)
+
+MCP_SERVER_URL = os.getenv("AIRLINE_MCP_URL", "http://airline-mcp:8010")
+AGENT_ID = os.getenv("AGENT_ID", "airline-agent")
+AGENT_NAME = os.getenv("AGENT_NAME", "Airline Agent")
+PORT = int(os.getenv("PORT", "8091"))
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(AGENT_ID)
+
+def get_llm():
+    if GROQ_API_KEY:
+        from langchain_groq import ChatGroq
+        return ChatGroq(model="meta-llama/llama-4-scout-17b-16e-instruct", api_key=GROQ_API_KEY, temperature=0)
+    elif ANTHROPIC_API_KEY:
+        from langchain_anthropic import ChatAnthropic
+        return ChatAnthropic(model="claude-sonnet-4-20250514", api_key=ANTHROPIC_API_KEY)
+    elif OPENAI_API_KEY:
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(model="gpt-4o-mini", api_key=OPENAI_API_KEY)
+    return None
+
+AGENT_CARD = AgentCard(
+    name=AGENT_NAME,
+    description="Searches flights, books tickets, retrieves and cancels reservations. "
+                "Connects to the airline MCP server for real-time availability.",
+    url=f"http://{AGENT_ID}:{PORT}", version="2.0.0",
+    capabilities=AgentCapabilities(streaming=False, stateTransitionHistory=True),
+    authentication=AgentAuthentication(schemes=["bearer"]),
+    skills=[
+        AgentSkill(id="flight-search", name="Flight Search",
+            description="Search for available flights between airports on a given date",
+            tags=["flights", "airline", "search", "travel"],
+            examples=["Find flights from JFK to LAX on 2025-07-15"]),
+        AgentSkill(id="flight-booking", name="Flight Booking",
+            description="Book a flight, retrieve booking details, or cancel a reservation",
+            tags=["booking", "reservation", "cancel", "PNR"],
+            examples=["Book flight AA123 for John Doe (john@example.com)"]),
+        AgentSkill(id="airport-info", name="Airport Information",
+            description="List supported airports",
+            tags=["airports", "codes"], examples=["What airports do you support?"]),
+    ],
+)
+
+mcp_config = None
+llm = None
+mcp_ready = False
+
+SYSTEM_PROMPT = """You are the Airline Agent, a specialist in flight search and booking.
+You have tools: search_flights, book_flight, get_booking, get_booking_by_pnr, cancel_booking, list_airports.
+Always use the appropriate tool to answer the user's question. Be concise and helpful."""
+
+async def handle_task(task: Task, message: Message) -> Task:
+    text_parts = [p.text for p in message.parts if isinstance(p, TextPart)]
+    user_text = " ".join(text_parts)
+    logger.info(f"Task {task.id[:8]}: '{user_text[:100]}'")
+    if not llm:
+        task.status = TaskStatus(state=TaskState.FAILED,
+            message=Message(role="agent", parts=[TextPart(text="No LLM configured.")]))
+        return task
+    try:
+        client = MultiServerMCPClient(mcp_config)
+        tools = await client.get_tools()
+        logger.info(f"Tool names: {[t.name for t in tools]}")
+        agent = create_react_agent(llm, tools)
+        result = await agent.ainvoke({"messages": [SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=user_text)]})
+        final = result["messages"][-1]
+        response_text = final.content if hasattr(final, "content") else str(final)
+        tools_called = [tc.get("name", "?") for msg in result["messages"]
+                        if hasattr(msg, "tool_calls") and msg.tool_calls for tc in msg.tool_calls]
+        task.status = TaskStatus(state=TaskState.COMPLETED,
+            message=Message(role="agent", parts=[TextPart(text=response_text)]))
+        task.artifacts = [Artifact(name="response", parts=[TextPart(text=response_text)],
+                                   metadata={"tools_called": tools_called, "agent_id": AGENT_ID})]
+    except Exception as e:
+        logger.exception(f"Task {task.id[:8]} failed: {e}")
+        task.status = TaskStatus(state=TaskState.FAILED,
+            message=Message(role="agent", parts=[TextPart(text=f"Error: {e}")]))
+    return task
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    await agent.initialize()
+    global mcp_config, llm, mcp_ready
+    logger.info(f"Starting {AGENT_NAME}")
+    mcp_config = {"airline-mcp": {"url": f"{MCP_SERVER_URL}/sse", "transport": "sse"}}
+    try:
+        test = MultiServerMCPClient(mcp_config)
+        tools = await test.get_tools()
+        logger.info(f"MCP reachable: {len(tools)} tools")
+        mcp_ready = True
+    except Exception as e:
+        logger.error(f"MCP not reachable: {e}")
+    llm = get_llm()
+    if llm: logger.info("LLM configured")
     yield
-    # Shutdown
-    await agent.shutdown()
 
-app = FastAPI(
-    title="Airline Agent API",
-    description="Airline Agent Microservice - ZTA Multi-Agent Testbed",
-    version="1.0.0",
-    lifespan=lifespan
-)
+a2a_server = A2AServer(card=AGENT_CARD, handler=handle_task)
+app = FastAPI(title=f"{AGENT_NAME} API", version="2.0.0", lifespan=lifespan)
+app.include_router(a2a_server.router)
 
 @app.get("/health")
 async def health():
-    """Health check endpoint"""
-    return agent.health_check()
-
-@app.get("/metrics")
-async def metrics():
-    """Metrics endpoint"""
-    return agent.get_metrics()
+    return {"status": "healthy", "agent_id": AGENT_ID, "mcp_connected": mcp_ready,
+            "llm_available": llm is not None, "protocol": "a2a",
+            "timestamp": datetime.now(timezone.utc).isoformat()}
 
 @app.get("/tools")
 async def tools():
-    """List available tools"""
-    return {
-        "agent_id": agent.agent_id,
-        "tools": agent.get_tools()
-    }
-
-@app.post("/invoke", response_model=AgentResponse)
-async def invoke(request: AgentRequest, http_request: Request):
-    """Main endpoint - invoke agent to process a request"""
-    agent.metrics["requests_total"] += 1
-    
-    # Log with ZTA context
-    supervisor_id = http_request.headers.get("x-supervisor-id", "unknown")
-    logger.info(f"Request from supervisor={supervisor_id}: {request.message[:100]}...")
-    
     try:
-        response = await agent.process_request(request)
-        if response.success:
-            agent.metrics["requests_success"] += 1
-        else:
-            agent.metrics["requests_failed"] += 1
-        return response
-    except Exception as e:
-        agent.metrics["requests_failed"] += 1
-        logger.exception(f"Error: {e}")
-        return AgentResponse(
-            success=False,
-            message="Agent error",
-            error=str(e)
-        )
+        client = MultiServerMCPClient(mcp_config)
+        tool_list = await client.get_tools()
+        return {"agent_id": AGENT_ID, "tools": [{"name": t.name, "description": t.description} for t in tool_list]}
+    except:
+        return {"agent_id": AGENT_ID, "tools": []}
 
 @app.get("/identity")
 async def identity():
-    """Return agent identity for ZTA verification"""
-    return {
-        "agent_id": agent.agent_id,
-        "agent_name": agent.agent_name,
-        "agent_type": "worker",
-        "domain": "airline",
-        "capabilities": [t["name"] for t in agent.get_tools()]
-    }
-
-
-# =============================================================================
-# Main Entry Point
-# =============================================================================
+    return {"agent_id": AGENT_ID, "agent_name": AGENT_NAME, "agent_type": "worker",
+            "domain": "airline", "protocol": "a2a"}
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("PORT", "8091"))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
