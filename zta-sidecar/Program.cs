@@ -196,9 +196,14 @@ if (allowedSources.Length > 0)
     app.Use(async (context, next) =>
     {
         // Skip health checks and sidecar endpoints
+        // if (context.Request.Path.StartsWithSegments("/health") ||
+        //     context.Request.Path.StartsWithSegments("/.well-known") ||
+        //     context.Request.Path.StartsWithSegments("/sidecar"))
         if (context.Request.Path.StartsWithSegments("/health") ||
             context.Request.Path.StartsWithSegments("/.well-known") ||
-            context.Request.Path.StartsWithSegments("/sidecar"))
+            context.Request.Path.StartsWithSegments("/sidecar") ||
+            context.Request.Path.StartsWithSegments("/sse") ||
+            context.Request.Path.StartsWithSegments("/messages"))
         {
             await next();
             return;
@@ -225,9 +230,14 @@ if (allowedSources.Length > 0)
 app.Use(async (context, next) =>
 {
     // Skip health and discovery endpoints
+    // if (context.Request.Path.StartsWithSegments("/health") ||
+    //     context.Request.Path.StartsWithSegments("/.well-known") ||
+    //     context.Request.Path.StartsWithSegments("/a2a/health"))
     if (context.Request.Path.StartsWithSegments("/health") ||
-        context.Request.Path.StartsWithSegments("/.well-known") ||
-        context.Request.Path.StartsWithSegments("/a2a/health"))
+            context.Request.Path.StartsWithSegments("/.well-known") ||
+            context.Request.Path.StartsWithSegments("/sidecar") ||
+            context.Request.Path.StartsWithSegments("/sse") ||
+            context.Request.Path.StartsWithSegments("/messages"))
     {
         await next();
         return;

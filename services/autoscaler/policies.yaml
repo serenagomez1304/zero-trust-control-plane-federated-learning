@@ -1,0 +1,170 @@
+# =============================================================================
+# ZTA Adaptive Autoscaling Policies
+# =============================================================================
+# Multi-signal triggers for scaling each component.
+# The autoscaler evaluates these rules every `evaluation_interval` seconds.
+#
+# Signals collected per component:
+#   qps             — requests per second (from sidecar metrics)
+#   p95_latency_ms  — 95th percentile response latency
+#   p99_latency_ms  — 99th percentile response latency
+#   error_rate      — fraction of 4xx/5xx responses (0.0 - 1.0)
+#   cpu_percent     — container CPU usage (0 - 100+)
+#   memory_mb       — container memory usage in MB
+#
+# Scale-up triggers: ANY condition met → scale up
+# Scale-down triggers: ALL conditions met → scale down
+# =============================================================================
+
+global:
+  evaluation_interval: 15        # seconds between evaluations
+  cooldown_after_scale: 60       # seconds to wait after scaling before re-evaluating
+  min_replicas: 1
+  max_replicas: 5
+  docker_compose_file: docker-compose.zta.yml
+
+components:
+  airline-agent:
+    service_name: airline-agent
+    metrics_url: http://localhost:19091/sidecar/health   # sidecar health
+    direct_url: http://localhost:8091/health              # agent health
+    min_replicas: 1
+    max_replicas: 3
+    scale_up:
+      # Scale up if ANY of these conditions is true
+      - signal: qps
+        operator: ">"
+        threshold: 50
+        description: "High request rate"
+      - signal: p95_latency_ms
+        operator: ">"
+        threshold: 500
+        description: "High p95 latency"
+      - signal: error_rate
+        operator: ">"
+        threshold: 0.15
+        description: "Error rate above 15%"
+      - signal: cpu_percent
+        operator: ">"
+        threshold: 80
+        description: "CPU overloaded"
+    scale_down:
+      # Scale down only if ALL of these conditions are true
+      - signal: qps
+        operator: "<"
+        threshold: 5
+      - signal: p95_latency_ms
+        operator: "<"
+        threshold: 100
+      - signal: error_rate
+        operator: "<"
+        threshold: 0.02
+      - signal: cpu_percent
+        operator: "<"
+        threshold: 30
+    # Threat-response: aggressive scaling on anomalous patterns
+    threat_response:
+      qps_spike_multiplier: 3.0    # scale up if QPS jumps 3x in one interval
+      error_burst_threshold: 0.5   # scale to max if error rate > 50%
+      scale_to_on_threat: 3        # target replicas during threat response
+
+  hotel-agent:
+    service_name: hotel-agent
+    metrics_url: http://localhost:19092/sidecar/health
+    direct_url: http://localhost:8092/health
+    min_replicas: 1
+    max_replicas: 3
+    scale_up:
+      - signal: qps
+        operator: ">"
+        threshold: 50
+      - signal: p95_latency_ms
+        operator: ">"
+        threshold: 500
+      - signal: error_rate
+        operator: ">"
+        threshold: 0.15
+      - signal: cpu_percent
+        operator: ">"
+        threshold: 80
+    scale_down:
+      - signal: qps
+        operator: "<"
+        threshold: 5
+      - signal: p95_latency_ms
+        operator: "<"
+        threshold: 100
+      - signal: error_rate
+        operator: "<"
+        threshold: 0.02
+      - signal: cpu_percent
+        operator: "<"
+        threshold: 30
+    threat_response:
+      qps_spike_multiplier: 3.0
+      error_burst_threshold: 0.5
+      scale_to_on_threat: 3
+
+  car-rental-agent:
+    service_name: car-rental-agent
+    metrics_url: http://localhost:19093/sidecar/health
+    direct_url: http://localhost:8093/health
+    min_replicas: 1
+    max_replicas: 3
+    scale_up:
+      - signal: qps
+        operator: ">"
+        threshold: 50
+      - signal: p95_latency_ms
+        operator: ">"
+        threshold: 500
+      - signal: error_rate
+        operator: ">"
+        threshold: 0.15
+      - signal: cpu_percent
+        operator: ">"
+        threshold: 80
+    scale_down:
+      - signal: qps
+        operator: "<"
+        threshold: 5
+      - signal: p95_latency_ms
+        operator: "<"
+        threshold: 100
+      - signal: error_rate
+        operator: "<"
+        threshold: 0.02
+      - signal: cpu_percent
+        operator: "<"
+        threshold: 30
+    threat_response:
+      qps_spike_multiplier: 3.0
+      error_burst_threshold: 0.5
+      scale_to_on_threat: 3
+
+  supervisor:
+    service_name: supervisor
+    direct_url: http://localhost:8080/health
+    min_replicas: 1
+    max_replicas: 2
+    scale_up:
+      - signal: qps
+        operator: ">"
+        threshold: 100
+      - signal: p95_latency_ms
+        operator: ">"
+        threshold: 1000
+      - signal: cpu_percent
+        operator: ">"
+        threshold: 85
+    scale_down:
+      - signal: qps
+        operator: "<"
+        threshold: 10
+      - signal: cpu_percent
+        operator: "<"
+        threshold: 30
+    threat_response:
+      qps_spike_multiplier: 5.0
+      error_burst_threshold: 0.5
+      scale_to_on_threat: 2
