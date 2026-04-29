@@ -1,257 +1,122 @@
-# Zero Trust Control Plane for Multi-Agent Systems
+# Workload Identity Patch (Option B)
 
-A federated Zero-Trust Architecture (ZTA) control plane for a multi-agent AI system, implemented as an independent study. The project demonstrates how ZTA principles — never trust, always verify — can govern both Agent-to-Tool (MCP) and Agent-to-Agent (A2A) interactions across a distributed multi-agent travel planning system.
+Adds SPIFFE-style workload identity so every agent acquires its own JWT at
+startup and propagates it on outbound calls. This fixes the `trust_score:0`
+issue you saw on Phase 1 of the federated-loop test, where the trust scorer
+was returning `certain_false` identity for every request because no token
+was being presented.
 
-## Architecture
+## What this changes
 
-```
-User
- └─▶ Supervisor (:8080)               LangGraph StateGraph · Groq LLM · JWT Auth
-      │
-      ├─▶ Airline Agent Sidecar (:19091)    .NET YARP · WAF · MicroSeg · OPA · DLP
-      │    └─▶ Airline Agent (:8091)         A2A Server · LangGraph ReAct · MCP Client
-      │         └─▶ Airline MCP Sidecar (:19010)
-      │              └─▶ Airline MCP (:8010)  FastMCP SSE → Airline Service (:8001)
-      │
-      ├─▶ Hotel Agent Sidecar (:19092)
-      │    └─▶ Hotel Agent (:8092)
-      │         └─▶ Hotel MCP Sidecar (:19011)
-      │              └─▶ Hotel MCP (:8011)    FastMCP SSE → Hotel Service (:8002)
-      │
-      └─▶ Car Rental Agent Sidecar (:19093)
-           └─▶ Car Rental Agent (:8093)
-                └─▶ Car Rental MCP Sidecar (:19012)
-                     └─▶ Car Rental MCP (:8012)  FastMCP SSE → Car Rental Service (:8003)
+| File | Change |
+|---|---|
+| `agents/a2a/auth.py` | **NEW.** `WorkloadIdentity` class — JWT bootstrap, TTL-aware refresh, fail-safe headers |
+| `agents/airline-agent/agent.py` | Bootstraps `WorkloadIdentity` at startup, passes Bearer token to MCP via `headers={...}` in MCP config |
+| `agents/hotel-agent/agent.py` | Same patch as airline |
+| `agents/car-rental-agent/agent.py` | Same patch as airline |
+| `services/trust-scorer/server.py` | Emits `trust.injection` events to audit logger when `injection_mass >= 0.7` |
+| `services/trust-scorer/requirements.txt` | Adds `httpx==0.27.2` |
+| `docker-compose.zta.yml` | Adds `ZTA_AUTH_URL` + `ZTA_AGENT_SECRET` to the three worker agents; adds `AUDIT_LOGGER_URL` + `depends_on: audit-logger` to trust-scorer |
+| `tests/test_federated_loop.py` | Phase 1 + Phase 2 acquire real JWT for `supervisor-agent` from auth service; Phase 1 now asserts `trust_score >= 60` |
 
- OPA (:8181)          Policy Decision Point — Rego policies
- ZTA Auth (:8180)     JWT Token Issuer — agent identity tokens
-```
+## Architecture (SPIFFE delegation pattern)
 
-Every arrow passes through a ZTA sidecar that enforces WAF, micro-segmentation, OPA policy evaluation, DLP inspection, and JWT validation — true zero trust at every hop.
+Inbound A2A request → sidecar validates the **caller's** token.
+Outbound MCP call → agent presents **its own** token (acquired at startup).
 
-## What's Implemented
+The micro-segmentation rule on the MCP sidecar is `ALLOWED_SOURCES=airline-agent`,
+not `supervisor-agent`. That's why the agent must use its own identity
+on the outbound call — the supervisor's identity wouldn't pass micro-seg
+even if we replayed it.
 
-### Phase 1 — Base App (A2A + MCP + LangGraph)
+## Apply
 
-- **A2A Protocol Library** (`agents/a2a/`) — Full implementation of Google's Agent2Agent Protocol: Agent Cards for capability discovery, Task lifecycle (submitted → working → completed/failed), Message/Part types, JSON-RPC 2.0 transport. 23 unit tests.
-- **MCP Servers** — FastMCP with SSE transport, wrapping airline, hotel, and car rental backend services as tools for LLM agents.
-- **Domain Agents** — Three specialized agents (airline, hotel, car-rental), each running a LangGraph ReAct tool-calling loop connected to its MCP server via `langchain-mcp-adapters`. Groq `llama-4-scout` as default LLM.
-- **Supervisor** — LangGraph StateGraph that discovers agents via A2A Agent Cards at startup, classifies user intent with an LLM, and delegates tasks via A2A `tasks/send`.
-
-### Phase 2 — ZTA Control Plane
-
-- **.NET YARP Sidecars** — Single Docker image configured per-component via env vars. Replaces Envoy with a .NET reverse proxy running the full ZeroTrustModel middleware pipeline:
-  - Security Monitoring (structured audit logging)
-  - WAF (SQL injection, XSS, rate limiting)
-  - JWT Authentication (Bearer token validation)
-  - Micro-Segmentation (agent-to-agent access control via `ALLOWED_SOURCES`)
-  - Policy Engine (calls OPA for authorization decisions)
-  - DLP (data loss prevention headers)
-- **OPA Policies** — Rego rules defining which agents can communicate with which targets. Supervisor can reach domain agents; domain agents can reach their MCP server; everything else is denied.
-- **JWT Auth Service** — Issues signed JWT tokens containing agent identity, type, allowed targets, and roles. Agents authenticate at startup; tokens are validated by sidecars on every request.
-- **Full Sidecar Mesh** — All traffic routed through sidecars: supervisor → agent sidecars → agents → MCP sidecars → MCP servers.
-
-## Quick Start
-
-### Prerequisites
-
-- Docker and Docker Compose
-- A Groq API key (free at [console.groq.com](https://console.groq.com))
-
-### Setup
+From the project root:
 
 ```bash
-git clone <repo-url>
-cd zero-trust-control-plane
+# 1. New helper module
+mkdir -p agents/a2a
+cp workload-identity-patch/agents/a2a/auth.py agents/a2a/auth.py
 
-# Set your LLM key
-echo "GROQ_API_KEY=gsk_your_key_here" > .env
+# 2. Patched worker agents
+cp workload-identity-patch/agents/airline-agent/agent.py     agents/airline-agent/agent.py
+cp workload-identity-patch/agents/hotel-agent/agent.py       agents/hotel-agent/agent.py
+cp workload-identity-patch/agents/car-rental-agent/agent.py  agents/car-rental-agent/agent.py
 
-# Start everything (18 containers)
+# 3. Patched trust scorer
+cp workload-identity-patch/services/trust-scorer/server.py        services/trust-scorer/server.py
+cp workload-identity-patch/services/trust-scorer/requirements.txt services/trust-scorer/requirements.txt
+
+# 4. Patched compose
+cp workload-identity-patch/docker-compose.zta.yml docker-compose.zta.yml
+
+# 5. Patched test
+cp workload-identity-patch/tests/test_federated_loop.py tests/test_federated_loop.py
+
+# 6. Rebuild and run
+docker compose -f docker-compose.zta.yml down
 docker compose -f docker-compose.zta.yml up --build
 ```
 
-### Phase 1 Only (no sidecars, 10 containers)
+## Verify
+
+In a second terminal once everything is healthy:
 
 ```bash
-docker compose -f docker-compose.zta.yml up --build \
-  airline-service hotel-service car-rental-service \
-  airline-mcp hotel-mcp car-rental-mcp \
-  airline-agent hotel-agent car-rental-agent \
-  supervisor
+# Should show ALL FIVE phases pass — including the new
+# "trust score healthy: score=85+ band=allow" line in Phase 1
+python tests/test_federated_loop.py --debug
 ```
 
-## Testing
-
-### End-to-End Queries
+You can also confirm the agents actually got their JWTs at startup:
 
 ```bash
-# Flight search
-curl -s -X POST http://localhost:8080/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Find flights from JFK to LAX on 2025-07-15"}' | python3 -m json.tool
-
-# Hotel search
-curl -s -X POST http://localhost:8080/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Search for hotels in New York from July 15 to July 18"}' | python3 -m json.tool
-
-# Car rental search
-curl -s -X POST http://localhost:8080/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Find rental cars at LAX from July 15 to July 20"}' | python3 -m json.tool
+docker compose -f docker-compose.zta.yml logs airline-agent | grep "workload identity"
+# expected: workload identity acquired for airline-agent
 ```
 
-### A2A Protocol
+And see the trust-scorer's injection events landing in audit:
 
 ```bash
-# Discover agent capabilities
-curl -s http://localhost:8091/.well-known/agent.json | python3 -m json.tool
-
-# Send a task directly via A2A JSON-RPC
-curl -s -X POST http://localhost:8091/a2a \
-  -H "Content-Type: application/json" \
-  -H "x-agent-id: supervisor-agent" \
-  -d '{
-    "jsonrpc": "2.0", "id": "test-1", "method": "tasks/send",
-    "params": {"id": "task-001", "message": {"role": "user", "parts": [{"type": "text", "text": "List all airports"}]}}
-  }' | python3 -m json.tool
+curl -s 'http://localhost:8195/events?event_type=trust.injection' | python3 -m json.tool
+# expected: source: "trust-scorer" entries with hits + injection_mass
 ```
 
-### ZTA Enforcement
+## What this enables for the report
 
-```bash
-# Sidecar health
-curl -s http://localhost:19091/sidecar/health | python3 -m json.tool
+This is the piece that lets you say "the system implements SPIFFE-style
+workload identity" with a straight face. Concretely:
 
-# Allowed: supervisor accessing agent through sidecar
-curl -s -H "x-agent-id: supervisor-agent" http://localhost:19091/.well-known/agent.json | python3 -m json.tool
+  1. **Every hop is authenticated.** Supervisor → airline-agent (caller's JWT),
+     airline-agent → airline-mcp (agent's own JWT). Both are validated by
+     the destination sidecar before any policy evaluation.
 
-# Blocked: unauthorized agent (returns 403)
-curl -s -H "x-agent-id: evil-agent" http://localhost:19091/a2a | python3 -m json.tool
+  2. **The trust scorer's identity opinion now produces useful signal.**
+     With JWTs flowing, `b_I` and `u_I` are non-trivial functions of the
+     token's freshness, signature validity, sub/agent_id match, and target
+     in `allowed_targets`. Before this patch every projection collapsed to 0
+     and the SL aggregator was effectively dominated by a single sink.
 
-# Blocked: no identity header (returns 403)
-curl -s http://localhost:19091/a2a | python3 -m json.tool
+  3. **The audit log is now causally complete.** The behavior PDP's R2 rule
+     fires on N injection events in a window — and those events now arrive
+     from the actual production trust scorer, not from test seeds. You can
+     point at a real `trust.injection → behavior.deny → revocation.issued`
+     chain in the audit timeline as evidence the federated control plane
+     is operating end-to-end.
 
-# ZTA headers on responses
-curl -sI -H "x-agent-id: supervisor-agent" http://localhost:19091/health 2>&1 | grep "X-ZTA"
-```
+## Caveats worth flagging in the report
 
-### JWT Authentication
+  - **Shared secret bootstrap.** Each worker agent has the same hardcoded
+    `ZTA_AGENT_SECRET` in compose. In production this would be per-agent,
+    rotated, and provisioned via a workload attestation flow (SPIRE node
+    attestation, K8s service account tokens, etc.). For this study the
+    threat model boundary is "the docker-compose host is trusted."
 
-```bash
-# Issue a token
-curl -s -X POST http://localhost:8180/token \
-  -H "Content-Type: application/json" \
-  -d '{"agent_id": "supervisor-agent", "secret": "zta-agent-shared-secret"}' | python3 -m json.tool
+  - **JWT lifetime: 24h.** No refresh-after-401 wired through the MCP
+    SSE channel (the helper supports `force_refresh` but the agent
+    doesn't call it on a 401 from MCP). Acceptable for a testbed where
+    runs are short; a real deployment would refresh proactively.
 
-# Verify a token
-TOKEN=$(curl -s -X POST http://localhost:8180/token -H "Content-Type: application/json" \
-  -d '{"agent_id": "supervisor-agent", "secret": "zta-agent-shared-secret"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
-curl -s -X POST http://localhost:8180/token/verify \
-  -H "Content-Type: application/json" \
-  -d "{\"token\": \"$TOKEN\"}" | python3 -m json.tool
-```
-
-### OPA Policy Decisions
-
-```bash
-# Allowed: supervisor → airline-agent
-curl -s -X POST http://localhost:8181/v1/data/zta/authz/allow \
-  -H "Content-Type: application/json" \
-  -d '{"input": {"agent_id": "supervisor-agent", "path": "/a2a", "method": "POST", "component": "airline-agent-sidecar"}}' | python3 -m json.tool
-
-# Denied: evil-agent → airline-agent
-curl -s -X POST http://localhost:8181/v1/data/zta/authz/allow \
-  -H "Content-Type: application/json" \
-  -d '{"input": {"agent_id": "evil-agent", "path": "/a2a", "method": "POST", "component": "airline-agent-sidecar"}}' | python3 -m json.tool
-```
-
-### Benchmarks
-
-```bash
-pip install httpx
-python benchmarks/latency_benchmark.py --runs 10 --suite all
-```
-
-### Unit Tests
-
-```bash
-pip install -e ".[test]"
-pytest tests/test_a2a.py -v
-```
-
-## Project Structure
-
-```
-zero-trust-control-plane/
-├── agents/
-│   ├── __init__.py
-│   ├── a2a/                        # A2A Protocol Library
-│   │   ├── models.py               #   Pydantic models (AgentCard, Task, Message, etc.)
-│   │   ├── server.py               #   A2AServer FastAPI router
-│   │   └── client.py               #   A2AClient async HTTP client + JWT auth
-│   ├── airline-agent/              # Domain agents (A2A + LangGraph + MCP)
-│   ├── hotel-agent/
-│   ├── car-rental-agent/
-│   └── supervisor/                 # LangGraph StateGraph orchestrator
-├── mcp-servers/
-│   ├── airline/                    # FastMCP SSE servers
-│   ├── hotel/
-│   └── car-rental/
-├── services/
-│   ├── airline/                    # Backend services (FastAPI + SQLite)
-│   ├── hotel/
-│   ├── car-rental/
-│   └── auth/                       # JWT Token Issuer
-├── zta-sidecar/                    # .NET YARP reverse proxy
-│   ├── Program.cs                  #   Full ZTA middleware pipeline
-│   ├── ZtaSidecar.csproj
-│   └── Dockerfile
-├── zta-infrastructure/
-│   └── opa/
-│       └── policy.rego             # Agent-to-agent access control policies
-├── benchmarks/
-│   └── latency_benchmark.py        # Latency with/without ZTA measurement
-├── tests/
-│   └── test_a2a.py                 # 23 unit tests for A2A library
-├── docker-compose.zta.yml          # Full deployment (18 containers)
-└── pyproject.toml
-```
-
-## Port Reference
-
-| Component | Direct Port | Sidecar Port |
-|-----------|------------|--------------|
-| Supervisor | 8080 | — |
-| Airline Agent | 8091 | 19091 |
-| Hotel Agent | 8092 | 19092 |
-| Car Rental Agent | 8093 | 19093 |
-| Airline MCP | 8010 | 19010 |
-| Hotel MCP | 8011 | 19011 |
-| Car Rental MCP | 8012 | 19012 |
-| OPA | 8181 | — |
-| Auth Service | 8180 | — |
-| Backend Services | 8001-8003 | — |
-
-## Benchmark Results
-
-ZTA sidecar overhead measured via `benchmarks/latency_benchmark.py`:
-
-| Path | Mean Latency | P95 |
-|------|-------------|-----|
-| A2A Direct (agent :8091) | ~13ms | ~25ms |
-| A2A via Sidecar (:19091) | ~16ms | ~32ms |
-| **ZTA Overhead** | **~3ms** | **~7ms** |
-
-End-to-end (user → supervisor → sidecar → agent → MCP → backend):
-
-| Query | Mean | P95 |
-|-------|------|-----|
-| Flight Search | ~185ms | ~319ms |
-| Hotel Search | ~157ms | ~331ms |
-| Car Rental Search | ~162ms | ~428ms |
-
-## License
-
-MIT License
+  - **No mTLS underneath.** Tokens are bearer tokens over HTTP. A real
+    deployment would terminate mTLS at the sidecar. This is consistent
+    with the rest of the testbed's threat model.

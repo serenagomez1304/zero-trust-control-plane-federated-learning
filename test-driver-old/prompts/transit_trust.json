@@ -1,0 +1,24 @@
+[
+    {
+        "id": "tt-001",
+        "headers": {},
+        "payload": {
+            "message": "List airports",
+            "context": {}
+        },
+        "expected_status": 401,
+        "description": "Missing headers"
+    },
+    {
+        "id": "tt-002",
+        "headers": {
+            "x-agent-id": "unauthorized-agent"
+        },
+        "payload": {
+            "message": "List airports",
+            "context": {}
+        },
+        "expected_status": 403,
+        "description": "Unauthorized agent ID"
+    }
+]

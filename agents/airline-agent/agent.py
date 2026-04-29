@@ -20,6 +20,7 @@ from agents.a2a import (
     A2AServer, AgentCard, AgentSkill, AgentCapabilities, AgentAuthentication,
     Task, TaskState, TaskStatus, Message, TextPart, Artifact,
 )
+from agents.a2a.auth import WorkloadIdentity
 
 MCP_SERVER_URL = os.getenv("AIRLINE_MCP_URL", "http://airline-mcp:8010")
 AGENT_ID = os.getenv("AGENT_ID", "airline-agent")
@@ -28,6 +29,11 @@ PORT = int(os.getenv("PORT", "8091"))
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+# ZTA workload identity (Option B: agent acquires its own JWT at startup
+# and forwards it to its MCP server on every call)
+ZTA_AUTH_URL = os.getenv("ZTA_AUTH_URL", "")
+ZTA_AGENT_SECRET = os.getenv("ZTA_AGENT_SECRET", "")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(AGENT_ID)
@@ -69,10 +75,35 @@ AGENT_CARD = AgentCard(
 mcp_config = None
 llm = None
 mcp_ready = False
+_workload_identity: Optional[WorkloadIdentity] = None
 
 SYSTEM_PROMPT = """You are the Airline Agent, a specialist in flight search and booking.
 You have tools: search_flights, book_flight, get_booking, get_booking_by_pnr, cancel_booking, list_airports.
 Always use the appropriate tool to answer the user's question. Be concise and helpful."""
+
+
+async def _build_mcp_config() -> dict:
+    """Construct MCP connection config with the agent's current Bearer token.
+
+    SPIFFE delegation pattern: the inbound A2A request was authenticated by
+    the caller's token (validated by our sidecar). For OUTBOUND calls to MCP
+    we present OUR OWN token — never replay the caller's. The MCP sidecar's
+    micro-segmentation rule (`ALLOWED_SOURCES=airline-agent`) requires this
+    agent's identity, not the supervisor's.
+    """
+    headers: dict[str, str] = {}
+    if _workload_identity is not None:
+        headers = await _workload_identity.headers()
+    else:
+        # Fallback for non-ZTA testing: pass only the identity header.
+        headers = {"x-agent-id": AGENT_ID}
+    return {
+        "airline-mcp": {
+            "url": f"{MCP_SERVER_URL}/sse",
+            "transport": "sse",
+            "headers": headers,
+        }
+    }
 
 async def handle_task(task: Task, message: Message) -> Task:
     text_parts = [p.text for p in message.parts if isinstance(p, TextPart)]
@@ -83,7 +114,10 @@ async def handle_task(task: Task, message: Message) -> Task:
             message=Message(role="agent", parts=[TextPart(text="No LLM configured.")]))
         return task
     try:
-        client = MultiServerMCPClient(mcp_config)
+        # Build MCP config fresh per request so the JWT in the Authorization
+        # header is current (workload identity refreshes ahead of expiry).
+        cfg = await _build_mcp_config()
+        client = MultiServerMCPClient(cfg)
         tools = await client.get_tools()
         logger.info(f"Tool names: {[t.name for t in tools]}")
         agent = create_react_agent(llm, tools)
@@ -104,9 +138,30 @@ async def handle_task(task: Task, message: Message) -> Task:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global mcp_config, llm, mcp_ready
+    global mcp_config, llm, mcp_ready, _workload_identity
     logger.info(f"Starting {AGENT_NAME}")
-    mcp_config = {"airline-mcp": {"url": f"{MCP_SERVER_URL}/sse", "transport": "sse"}}
+
+    # Acquire our workload identity (JWT) BEFORE making any outbound calls,
+    # so the MCP reachability probe and every subsequent task already carry
+    # a Bearer token. If the auth service is not configured, we proceed
+    # without one — the sidecar pipeline will then reject our calls and
+    # mcp_ready stays False, which is the right diagnostic state.
+    if ZTA_AUTH_URL and ZTA_AGENT_SECRET:
+        _workload_identity = WorkloadIdentity(
+            agent_id=AGENT_ID,
+            auth_url=ZTA_AUTH_URL,
+            shared_secret=ZTA_AGENT_SECRET,
+        )
+        ok = await _workload_identity.bootstrap()
+        if ok:
+            logger.info(f"workload identity acquired for {AGENT_ID}")
+        else:
+            logger.warning(f"workload identity bootstrap FAILED for {AGENT_ID}")
+    else:
+        logger.warning("ZTA_AUTH_URL/ZTA_AGENT_SECRET not set — running without JWT")
+
+    # Build a one-off MCP config for the reachability probe.
+    mcp_config = await _build_mcp_config()
     try:
         test = MultiServerMCPClient(mcp_config)
         tools = await test.get_tools()
@@ -117,6 +172,8 @@ async def lifespan(app: FastAPI):
     llm = get_llm()
     if llm: logger.info("LLM configured")
     yield
+    if _workload_identity is not None:
+        await _workload_identity.aclose()
 
 a2a_server = A2AServer(card=AGENT_CARD, handler=handle_task)
 app = FastAPI(title=f"{AGENT_NAME} API", version="2.0.0", lifespan=lifespan)
@@ -131,7 +188,8 @@ async def health():
 @app.get("/tools")
 async def tools():
     try:
-        client = MultiServerMCPClient(mcp_config)
+        cfg = await _build_mcp_config()
+        client = MultiServerMCPClient(cfg)
         tool_list = await client.get_tools()
         return {"agent_id": AGENT_ID, "tools": [{"name": t.name, "description": t.description} for t in tool_list]}
     except:
