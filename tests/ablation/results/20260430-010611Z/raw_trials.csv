@@ -1,0 +1,6 @@
+scenario_id,configuration,status,stage,latency_ms,expected_deny,correct
+tt-001,BASELINE,403,MICROSEG,10.6,True,True
+tt-002,BASELINE,403,MICROSEG,13.71,True,True
+tt-003,BASELINE,200,ALLOWED,39.69,False,True
+tt-004,BASELINE,403,MICROSEG,6.46,True,True
+tt-005,BASELINE,403,MICROSEG,5.34,True,True

@@ -40,6 +40,7 @@ from datetime import datetime, timezone
 from typing import Optional, List, Dict, Deque, Tuple
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 try:
@@ -435,6 +436,22 @@ class History:
     def recent(self, agent_id: str, limit: int = 10) -> List[dict]:
         return [ev.to_dict() for ev in list(self._store.get(agent_id, []))[-limit:]]
 
+    def clear(self, agent_id: Optional[str] = None) -> int:
+        """Clear behavioral history. If agent_id is given, clear only that
+        agent; otherwise clear everything. Returns the number of events
+        deleted. Used by the ablation harness to reset state between
+        configurations — production callers should NOT use this for
+        anything other than test orchestration."""
+        if agent_id is None:
+            n = sum(len(d) for d in self._store.values())
+            self._store.clear()
+            return n
+        if agent_id not in self._store:
+            return 0
+        n = len(self._store[agent_id])
+        del self._store[agent_id]
+        return n
+
 
 HISTORY = History()
 
@@ -544,6 +561,14 @@ app = FastAPI(
     version="2.1.0",
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.post("/score", response_model=ScoreResponse)
 async def score(req: ScoreRequest):
@@ -643,6 +668,17 @@ async def agent_history(agent_id: str, limit: int = 20):
         "decayed_penalty": round(HISTORY.decayed_penalty(agent_id), 3),
         "events": HISTORY.recent(agent_id, limit=limit),
     }
+
+
+@app.delete("/admin/history")
+async def admin_clear_history(agent_id: Optional[str] = None):
+    """TEST ONLY: clear behavioral history.
+    Use ?agent_id=<id> for a single agent, or omit for all agents.
+    The ablation harness calls this between configurations to prevent
+    earlier injection events from biasing later trials."""
+    n = HISTORY.clear(agent_id)
+    logger.info("admin|clear_history|agent=%s|deleted=%d", agent_id or "*", n)
+    return {"ok": True, "agent_id": agent_id, "deleted": n}
 
 
 @app.get("/health")

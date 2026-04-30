@@ -41,6 +41,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 # =============================================================================
@@ -178,6 +179,14 @@ app = FastAPI(
     version="1.0.0",
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.on_event("startup")
 def _startup() -> None:
@@ -283,6 +292,28 @@ def agent_summary(
         total_events=total, by_type=by_type, deny_count=deny_count,
         last_event_ts=last_ts_row[0] if last_ts_row else None,
     )
+
+
+@app.delete("/admin/events")
+def admin_delete_events(agent_id: Optional[str] = None,
+                        event_type: Optional[str] = None):
+    """TEST ONLY: delete events. Filter by agent_id and/or event_type.
+    The ablation harness uses this between configurations to prevent
+    earlier-config injection events from biasing the behavior PDP's
+    R2 rule (which queries audit, not trust scorer history)."""
+    sql = "DELETE FROM events WHERE 1=1"
+    params: list[Any] = []
+    if agent_id is not None:
+        sql += " AND agent_id = ?"; params.append(agent_id)
+    if event_type is not None:
+        sql += " AND event_type = ?"; params.append(event_type)
+    with _db_lock, _db() as conn:
+        cur = conn.execute(sql, params)
+        deleted = cur.rowcount
+    logger.info("admin|delete|agent=%s|type=%s|deleted=%d",
+                agent_id or "*", event_type or "*", deleted)
+    return {"ok": True, "agent_id": agent_id, "event_type": event_type,
+            "deleted": deleted}
 
 
 @app.get("/health")

@@ -220,7 +220,7 @@ services:
       - BLOCK_FLOOR=0.8
       # Operator must opt-in; when true, behavior PDP can call dispatcher
       # to quarantine an agent on a block-band rule firing.
-      - AUTO_QUARANTINE=true
+      - AUTO_QUARANTINE=false
       - AUTO_QUARANTINE_TTL_S=900
     depends_on:
       audit-logger: { condition: service_healthy }

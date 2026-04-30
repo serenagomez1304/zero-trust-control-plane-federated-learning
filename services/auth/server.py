@@ -21,6 +21,7 @@ from typing import Optional, List
 
 import jwt
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # =============================================================================
@@ -138,6 +139,14 @@ def verify_token(token: str) -> dict:
 # =============================================================================
 
 app = FastAPI(title="ZTA Auth Service", description="JWT Token Issuer for ZTA Multi-Agent System", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.post("/token", response_model=TokenResponse)

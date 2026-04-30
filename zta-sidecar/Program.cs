@@ -57,6 +57,11 @@ var allowedSources = (Environment.GetEnvironmentVariable("ALLOWED_SOURCES") ?? "
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 var enableWaf = Environment.GetEnvironmentVariable("ENABLE_WAF") != "false";
 var enableDlp = Environment.GetEnvironmentVariable("ENABLE_DLP") != "false";
+// Two additional flags introduced for the per-stage ablation harness.
+// Both default to ENABLED so existing deployments are unchanged. Set to
+// "false" only when running an ablation that needs these stages off.
+var enableMicroseg = Environment.GetEnvironmentVariable("ENABLE_MICROSEG") != "false";
+var enableOpa      = Environment.GetEnvironmentVariable("ENABLE_OPA")      != "false";
 
 // =============================================================================
 // Federated control-plane peers (proposal §1: PDP / auth gateway / trust scorer
@@ -319,7 +324,7 @@ if (enableRevocation)
 }
 
 // 4. Micro-Segmentation — agent-to-agent access control
-if (allowedSources.Length > 0)
+if (enableMicroseg && allowedSources.Length > 0)
 {
     app.Use(async (context, next) =>
     {
@@ -586,6 +591,12 @@ if (enableBehaviorPdp)
 }
 
 // 6. Policy Engine — call OPA for authorization
+//    Gated by ENABLE_OPA so the ablation harness can measure marginal
+//    contribution. When disabled, requests pass through to DLP and YARP
+//    without any rule-based authorization check; the trust scorer and
+//    behavior PDP remain in force.
+if (enableOpa)
+{
 app.Use(async (context, next) =>
 {
     // Skip health and discovery endpoints
@@ -665,6 +676,7 @@ app.Use(async (context, next) =>
         }
     }
 });
+}  // end if (enableOpa)
 
 // 7. DLP — check response bodies for sensitive data
 if (enableDlp)
