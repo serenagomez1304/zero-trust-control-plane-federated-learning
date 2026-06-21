@@ -1,0 +1,356 @@
+\documentclass[sigconf,nonacm]{acmart}
+\usepackage{xcolor}
+\usepackage{todonotes}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+% ============================================================
+% NOTE: This is a SKELETON DRAFT. Many sections are placeholders.
+% \todo{} markers indicate gaps that need real content.
+% Citations marked [REF] need to be filled in with actual entries.
+% ============================================================
+
+\settopmatter{printacmref=false}
+\setcopyright{none}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+
+\title{Federated Learning of Purpose- and Context-Driven Trust Models for Multi-Agent AI Communication}
+
+\author{Serena A. Gomez}
+\affiliation{%
+  \institution{Carnegie Mellon University}
+  \city{Pittsburgh}
+  \state{PA}
+  \country{USA}
+}
+\email{sgomez@andrew.cmu.edu}
+
+\author{[Teammate Name]}
+\affiliation{%
+  \institution{Carnegie Mellon University}
+  \city{Pittsburgh}
+  \state{PA}
+  \country{USA}
+}
+
+\author{Mohamed Farag}
+\affiliation{%
+  \institution{Carnegie Mellon University}
+  \city{Pittsburgh}
+  \state{PA}
+  \country{USA}
+}
+
+\renewcommand{\shortauthors}{Gomez et al.}
+
+\begin{document}
+
+\begin{abstract}
+Multi-agent AI systems today establish trust at the level of the principal: an agent is judged trustworthy or not based on its identity, history, and behavioral track record, and once judged trustworthy is given broad latitude over the messages it processes. This principal-centric model breaks down under the threat of rogue or compromised agents---a previously well-behaved agent that has been hijacked, substituted, or subverted still appears trustworthy to its callers, and there is no per-interaction signal to indicate otherwise. We propose a trust model in which trust is established per-message rather than per-principal, grounded in two evolving signals: the purpose the receiving agent declares for the interaction, and the context the message has accumulated over its journey through the agent chain. Each message carries a bundled semantic model describing what it is and what it has experienced so far; at every hop, this model---executing on a trusted compute substrate---evaluates whether the next agent's declared purpose is consistent with the message's intent and accumulated context, and only then permits the interaction to proceed. The same model also governs purpose-driven transformation of the message into a view appropriate for each agent, context-aware integration of agent responses as the chain progresses, and final synthesis of results back to the user from accumulated context rather than from any single agent. The semantic models that drive these decisions cannot be trained on centralized data: the training signal is generated locally across deployments and contains the sensitive behavioral and contextual information the trust model is designed to protect. We therefore train the message-resident semantic models using federated learning, with each deployment contributing local updates from its observed interactions; the non-IID heterogeneity across deployments presents a setting existing federated learning methods have not been studied against, and we characterize how standard aggregation strategies behave on this class of data. We evaluate on a multi-agent zero-trust testbed with simulated multi-deployment heterogeneity, demonstrating that compromise of any individual agent is bounded to the purpose-justified exposure for that hop, and that the federated training regime produces trust models comparable to centralized training while preserving each deployment's data locality.
+\end{abstract}
+
+\keywords{multi-agent AI, zero trust, federated learning, agent security, contextual trust, purpose-driven access control}
+
+\maketitle
+
+% ============================================================
+\section{Introduction}
+\label{sec:intro}
+
+\todo[inline]{Roughly 1.25 pages. The intro tells the story of why principal-trust fails and why per-message purpose-and-context trust is the right response. Then a paragraph on why FL is the natural training methodology for this setting. End with a contributions list.}
+
+The deployment of multi-agent AI systems has grown rapidly, with frameworks such as Anthropic's Model Context Protocol (MCP) and Google's Agent-to-Agent protocol (A2A) enabling large language model agents to coordinate, delegate, and consume external tools at runtime~\cite{REF:mcp,REF:a2a}. As these systems move from prototypes to production deployments, the security model they inherit---principal-based zero-trust, scoped to authenticated identities and continuously verified at policy enforcement points~\cite{REF:nist-zta}---begins to show structural cracks.
+
+The core problem is straightforward to state and difficult to solve. Principal-based trust judges \emph{who} is making a request: it asks whether an agent's identity is verified, whether its behavioral history suggests good standing, and whether its credentials meet local policy. Once an agent passes this judgment, it is given broad latitude over the data it receives and the actions it can take with that data. This is operationally efficient and architecturally clean, but it has a fundamental blind spot: \emph{the trust evaluation occurs once, against the principal, and is not refined per interaction}. A well-behaved agent that has been hijacked by a prompt injection, substituted by an attacker, or subverted through supply-chain compromise still presents the same identity and the same behavioral history it presented before compromise. Its callers, having no per-interaction signal to indicate that something has changed, continue to extend trust as before.
+
+\todo{Add a concrete motivating example: travel-planning supervisor calls airline-agent that has been compromised; today's trust models don't catch it, but a per-message purpose-and-context check would.}
+
+We argue that the solution is to relocate trust from the principal to the message. Rather than asking ``do I trust this agent?'', the system should be able to ask, at every hop, ``does this message's purpose, given everything it has been through so far, justify the access this agent is requesting?'' Two signals make this question answerable: the \emph{purpose} the receiving agent declares for the interaction, and the \emph{context} the message has accumulated over its journey through the agent chain. The purpose signal allows the system to reason about whether the agent's stated function is consistent with the message's intent; the context signal accumulates evidence as the message moves through the chain, allowing trust judgments to become progressively richer and more constrained.
+
+To make this concrete: each message carries a bundled semantic model describing what it is and what it has experienced so far. At every hop, this model---executing on a trusted compute substrate, since the message itself has no compute---performs four functions: (i) it evaluates whether the next agent's declared purpose is consistent with the message's intent and accumulated context; (ii) if trust is established, it transforms the message into a purpose-tailored view appropriate for that agent; (iii) it integrates the agent's response into the message's accumulated context; and (iv) at the end of the chain, it synthesizes a final response to the user from the full accumulated context, rather than relying on any single agent to produce the user-facing output. The platform that runs these computations is trusted; the agents that the message interacts with are not. This is the OS-vs-application trust pattern applied to multi-agent AI communication.
+
+\todo{Federated learning paragraph here. The semantic models cannot be trained on centralized data because the training signal IS the sensitive thing. FL is the natural fit. Non-IID heterogeneity across deployments is a real and underexplored FL setting.}
+
+\paragraph{Contributions.} This paper makes two contributions:
+\begin{enumerate}
+    \item A \textbf{purpose- and context-driven trust model} for multi-agent AI communication that shifts trust evaluation from the principal level to the per-message level, defending against rogue and compromised agents by bounding each agent's access to what its declared purpose justifies given the message's accumulated context.
+    \item A \textbf{federated training methodology} for the semantic models that drive these per-message trust decisions, allowing deployment across organizational boundaries without centralizing sensitive behavioral or contextual data. We characterize the non-IID heterogeneity intrinsic to this setting and evaluate how standard federated aggregation strategies behave.
+\end{enumerate}
+
+\todo{Add roadmap sentence: section 2 background, section 3 threat model, etc.}
+
+% ============================================================
+\section{Background and Related Work}
+\label{sec:related}
+
+\todo[inline]{Roughly 1 page. Three subsections: principal-based ZTA, policy-carrying mechanisms, context-aware agent security. End with FL for behavioral data. Honest positioning against each.}
+
+\subsection{Principal-Based Zero-Trust Architecture}
+
+The canonical reference for zero-trust architecture is NIST Special Publication 800-207~\cite{REF:nist-zta}, which formalizes the principle of ``never trust, always verify'' through a policy decision point (PDP) and a set of policy enforcement points (PEPs). The PDP holds policy logic and consumes signals about the principal making a request; PEPs sit in the data path and enforce the PDP's decisions. Workload identity is established through cryptographic credentials such as those issued by SPIFFE/SPIRE~\cite{REF:spiffe}, and dynamic trust evaluation can be added through behavioral scoring, attestation, or continuous verification~\cite{REF:trust-scoring-survey}.
+
+\todo{Cite recent ZTA-for-agentic-AI papers, including the prior NeurIPS submission if it becomes citable. For the current version, gesture at the literature without citing the prior work directly.}
+
+This model assumes the principal is the appropriate unit of evaluation. Identity-based access decisions, behavioral history, and credential checks all evaluate \emph{who} is making the request rather than \emph{what} the request itself entails. Under classical client-server assumptions, where principals have stable behavioral patterns and a compromise of one principal does not propagate, this is a reasonable simplification. In multi-agent AI systems, the assumption breaks: agents are not human, their behavior depends on the prompts they receive, and a prompt injection or supply-chain compromise can flip a previously trustworthy agent into an adversary mid-session without altering its credentials or external identity.
+
+\subsection{Policy-Carrying Mechanisms}
+
+A line of work in distributed authorization considers carrying policy with the data or the request, rather than relying on a central decision point. Macaroons~\cite{REF:macaroons} are bearer credentials with chained HMAC and contextual caveats, allowing a credential to attenuate its own authority as it travels. Verifiable Credentials (W3C VC Data Model 2.0~\cite{REF:vc}) provide tamper-resistant, cryptographically-signed claims about a subject that any verifier can check independently. Sticky policies~\cite{REF:sticky-policies} attach usage rules directly to data so the rules travel with the protected resource.
+
+These mechanisms share a common architectural property---authority or policy moves with the artifact---but they differ from our approach in a critical way: in each case the policy is \emph{declarative and fixed at issuance}. Caveats on a macaroon do not change based on the bearer's behavior between issuance and presentation; a VC's claims are settled when the issuer signs them; sticky policies are static rules. We extend the carry-with-the-message pattern to dynamic, runtime-refined trust state.
+
+\subsection{Context-Aware Agent Security}
+
+Recent work has begun to address the gap between principal-based access control and the contextual nature of agent decisions. AirGapAgent~\cite{REF:airgap} uses Nissenbaum's contextual integrity~\cite{REF:nissenbaum} to ground privacy defenses for conversational agents, restricting agents to the data appropriate for the current task. Conseca~\cite{REF:conseca} proposes just-in-time, purpose-driven security policies generated dynamically for each agent action.
+
+\todo{Position carefully: these are the closest prior work and the abstract names them. The differentiator is that both keep the evaluation logic external to the message itself; our model puts the evaluation logic into the message via a bundled semantic model that travels with it.}
+
+\subsection{Federated Learning for Privacy-Sensitive Data}
+
+\todo[inline]{One paragraph. Cite McMahan et al. for FedAvg~\cite{REF:fedavg}; key FL methods we'll compare against: FedProx, SCAFFOLD, FedNova~\cite{REF:fedprox,REF:scaffold,REF:fednova}. Mention FL on tabular/behavioral data, non-IID heterogeneity studies, and any work on FL for security tasks. Honest about the gap: nobody has studied FL on agent-interaction-derived training data.}
+
+% ============================================================
+\section{Threat Model and System Assumptions}
+\label{sec:threat}
+
+\todo[inline]{Roughly 0.75 pages. Define attacker capabilities, what we trust, what we don't.}
+
+\subsection{What We Trust}
+
+\begin{itemize}
+    \item The \textbf{platform substrate}: the infrastructure that runs sidecar middleware, hosts the trusted compute environment, and provides cryptographic services. We assume the platform is operated and vetted by the deployment, distinct from the application-layer agents.
+    \item The \textbf{cryptographic primitives}: signing, verification, attestation. We do not consider attacks on cryptographic primitives themselves.
+    \item The \textbf{message originator}: the user (or the user's client) who composes the original message and the semantic model bundled with it. \todo{This is a real assumption worth examining---if the originator is itself an agent we don't trust, we have a bootstrap problem. Address this honestly in the limitations section.}
+\end{itemize}
+
+\subsection{What We Do Not Trust}
+
+\begin{itemize}
+    \item Any individual \textbf{agent} in the call chain. Agents may have been compromised through prompt injection, substituted by an attacker, or subverted through supply-chain attacks. Agents may attempt to extract more information from messages than their purpose justifies, fabricate responses, or refuse to honor purpose-driven exposure constraints.
+    \item Communication between agents and the platform's compute substrate is presumed adversarial. mTLS is used for transport but the contents of any agent-side computation are not trusted.
+\end{itemize}
+
+\subsection{Attacker Model}
+
+\todo[inline]{Three concrete attack classes we will evaluate against: (1) rogue agent substitution---attacker replaces a legitimate agent with a malicious one carrying the same credentials; (2) prompt-injected agent---a legitimate agent is hijacked mid-session by injected content; (3) supply-chain compromise---an agent's code or model is replaced before deployment. For each, articulate what the attacker is trying to achieve (exfiltrate context, fabricate response, escalate access) and what today's principal-based trust permits.}
+
+% ============================================================
+\section{The Purpose- and Context-Driven Trust Model}
+\label{sec:model}
+
+\todo[inline]{Roughly 2 pages. Formal definitions, algorithm specification, security argument.}
+
+\subsection{Message Structure}
+
+A message $m$ in our system consists of:
+\[
+m = \langle \text{content}, \mu, \kappa, \sigma \rangle
+\]
+where $\text{content}$ is the payload, $\mu$ is the bundled semantic model (described below), $\kappa$ is the accumulated context (initialized as empty at the originating point), and $\sigma$ is the cryptographic signature chain authenticating the bundle.
+
+\todo{Decide: is $\mu$ a single transformer, or a bundle of related capabilities? My recommendation in earlier brainstorming was the latter---separate but coordinated capabilities for trust evaluation, transformation, response integration, and synthesis. Formalize this.}
+
+\subsection{Per-Hop Operation}
+
+At each hop in the agent chain, the platform executes a four-step procedure on behalf of the message:
+
+\begin{algorithm}
+\caption{Per-hop message processing}
+\begin{algorithmic}[1]
+\Require message $m = \langle \text{content}, \mu, \kappa, \sigma \rangle$, target agent $a$ with declared purpose $p_a$ and attestation $\alpha_a$
+\State Verify signature $\sigma$ over $\langle \text{content}, \mu, \kappa \rangle$
+\State $t \gets \mu.\text{trust\_eval}(p_a, \alpha_a, \kappa)$ \Comment{trust check}
+\If{$t < \tau$}
+    \State \Return \textsc{Reject}
+\EndIf
+\State $\text{view} \gets \mu.\text{transform}(\text{content}, p_a, \kappa)$ \Comment{purpose-driven view}
+\State $r \gets a(\text{view})$ \Comment{agent processes its view}
+\State $\kappa' \gets \mu.\text{integrate}(r, \kappa, p_a)$ \Comment{integrate response}
+\State Resign with updated context: $m' \gets \langle \text{content}, \mu, \kappa', \sigma' \rangle$
+\State \Return $m'$
+\end{algorithmic}
+\end{algorithm}
+
+\todo{Discuss each function in detail. The trust\_eval function consumes the agent's declared purpose, its attestation (signed by a trusted attester), and the accumulated context, and produces a trust value in $[0,1]$. The threshold $\tau$ may be context-dependent.}
+
+\subsection{Final Synthesis}
+
+When the chain completes, the platform executes:
+\[
+\text{response} = \mu.\text{synthesize}(\kappa)
+\]
+producing a coherent response to the originator from the accumulated context. This computation happens on the trusted substrate using the message's bundled model, not by any agent in the chain.
+
+\subsection{Security Argument}
+
+\todo[inline]{Informal security argument. The key property: compromise of any single agent $a_i$ is bounded by what $\mu.\text{transform}(\cdot, p_{a_i}, \kappa)$ exposes to it. The agent never sees raw content, never sees other agents' responses except as filtered through $\mu.\text{integrate}$, and never produces the final user-facing output. Therefore the worst-case impact of compromise is the disclosure of one hop's purpose-justified view and the fabrication of one hop's response, both of which can be detected if subsequent hops' context integration reveals inconsistency.}
+
+% ============================================================
+\section{Federated Training of Semantic Models}
+\label{sec:fl}
+
+\todo[inline]{Roughly 1.5 pages. The FL contribution. Explain why training data is distributed and sensitive, formalize the FL setup, describe the aggregation strategies we evaluate, identify the non-IID heterogeneity properties unique to this setting.}
+
+\subsection{Why Federated}
+
+The training signal for $\mu$---examples of (message intent, agent purpose, accumulated context, appropriate exposure decision)---is intrinsically distributed and sensitive. Each deployment of a multi-agent AI system generates this signal through its own agent interactions, user prompts, and organizational policies. Centralizing this signal across deployments would expose exactly the kinds of behavioral and contextual information that the trust model is designed to protect.
+
+Federated learning is the natural training methodology for this setting: each deployment trains locally on its own data, contributing only model updates to a shared aggregation process. We adopt the standard cross-silo FL setting~\cite{REF:fl-survey} with $K$ deployments, each holding a local dataset $\mathcal{D}_k$ of (message, agent purpose, exposure decision) tuples.
+
+\subsection{Aggregation Strategies}
+
+We evaluate four aggregation strategies, spanning the major design choices in current FL literature:
+\begin{itemize}
+    \item \textbf{FedAvg}~\cite{REF:fedavg}: weighted averaging of local updates.
+    \item \textbf{FedProx}~\cite{REF:fedprox}: FedAvg with a proximal term to handle client drift under non-IID conditions.
+    \item \textbf{SCAFFOLD}~\cite{REF:scaffold}: variance-reduced aggregation using control variates.
+    \item \textbf{FedNova}~\cite{REF:fednova}: normalized averaging for heterogeneous local steps.
+\end{itemize}
+
+\subsection{Non-IID Heterogeneity in This Setting}
+
+The heterogeneity across deployments differs from the heterogeneity patterns studied in standard FL benchmarks. We characterize three sources:
+\begin{enumerate}
+    \item \textbf{Agent-population heterogeneity}: different deployments have different mixes of agent types (e.g., one deployment may have many specialized financial agents, another may have many travel-planning agents). This affects the distribution of declared purposes.
+    \item \textbf{Task-distribution heterogeneity}: different deployments serve different user populations with different task distributions. This affects the distribution of message intents and contexts.
+    \item \textbf{Threat-profile heterogeneity}: different deployments face different adversarial conditions. This affects the distribution of compromised-agent observations in the training signal.
+\end{enumerate}
+
+\todo[inline]{We need to actually characterize these formally, with measurements of distributional distance (e.g., Wasserstein or KL between deployment marginals). This is empirical work, not just text.}
+
+\subsection{Privacy Considerations}
+
+\todo[inline]{Optional: differential privacy via DP-SGD~\cite{REF:dpsgd}. Reviewers may expect this; decide whether to include based on time available.}
+
+% ============================================================
+\section{Implementation}
+\label{sec:impl}
+
+\todo[inline]{Roughly 0.75 pages. The testbed, the FL infrastructure, what was reused vs newly built.}
+
+We implement the trust model in a multi-agent zero-trust testbed comprising a supervisor agent and several specialized worker agents communicating over A2A~\cite{REF:a2a} and MCP~\cite{REF:mcp}. The platform is built around a sidecar middleware pattern, where each agent is fronted by a sidecar that mediates communication. The bundled semantic model $\mu$ is hosted in the sidecar's trusted compute environment.
+
+\todo{Describe semantic model architecture: small distilled transformer, approximately X parameters, trained with Y. Be honest about parameter count and inference cost.}
+
+\todo{FL infrastructure: Flower~\cite{REF:flower} for the federated training pipeline. Each simulated deployment runs a Flower client.}
+
+% ============================================================
+\section{Evaluation}
+\label{sec:eval}
+
+\todo[inline]{Roughly 2 pages. This is the heaviest section. Two evaluation tracks: (1) security against rogue agents, (2) FL training behavior under non-IID heterogeneity.}
+
+\subsection{Experimental Setup}
+
+\todo{Describe $K$ simulated deployments, agent populations, attack scenarios, training data generation, evaluation metrics.}
+
+\subsection{Defense Against Rogue Agents}
+
+\todo[inline]{Table: for each attack class (substitution, prompt injection, supply-chain compromise), report (a) attack success rate against principal-based baseline, (b) attack success rate against purpose-and-context model, (c) bounded-exposure metric. Discuss findings.}
+
+\begin{table}[h]
+\caption{Placeholder: Attack success rates against principal-based baseline vs.\ purpose-and-context model.}
+\label{tab:attack-success}
+\centering
+\begin{tabular}{lccc}
+\toprule
+Attack class & Baseline ASR & Ours ASR & Bounded exposure \\
+\midrule
+Rogue substitution & XX\% & XX\% & XX\% \\
+Prompt injection & XX\% & XX\% & XX\% \\
+Supply-chain compromise & XX\% & XX\% & XX\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Federated Training Performance}
+
+\todo[inline]{Table: convergence and final accuracy of each FL aggregation strategy on the trust-decision task under varying levels of non-IID heterogeneity. Compare against centralized training as upper bound.}
+
+\begin{table}[h]
+\caption{Placeholder: FL aggregation strategy comparison on trust-decision task.}
+\label{tab:fl-comparison}
+\centering
+\begin{tabular}{lcccc}
+\toprule
+Method & IID acc. & Mild non-IID & Severe non-IID & Comm. rounds \\
+\midrule
+Centralized (upper bound) & XX.X & --- & --- & --- \\
+FedAvg & XX.X & XX.X & XX.X & XXX \\
+FedProx & XX.X & XX.X & XX.X & XXX \\
+SCAFFOLD & XX.X & XX.X & XX.X & XXX \\
+FedNova & XX.X & XX.X & XX.X & XXX \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Characterization of Non-IID Heterogeneity}
+
+\todo[inline]{Empirical measurement of the three heterogeneity sources described in Section~\ref{sec:fl}. Show how each source affects training behavior.}
+
+\subsection{Overhead}
+
+\todo[inline]{Per-hop overhead of the bundled semantic model execution; comparison against principal-based baseline.}
+
+% ============================================================
+\section{Discussion}
+\label{sec:discussion}
+
+\todo[inline]{0.5 pages.}
+
+\subsection{Where the Model Helps and Where It Doesn't}
+
+\todo{Be honest. The model helps against rogue agents that try to extract or fabricate. It does not help against agents that are correctly executing their purpose but produce harmful outputs within that purpose. It is complementary to, not a replacement for, principal-based ZTA.}
+
+\subsection{Computational Cost}
+
+\todo{Acknowledge that running a semantic model at every hop adds latency. Discuss when this trade-off is appropriate and when it isn't.}
+
+\subsection{Bootstrap and Trust in the Originator}
+
+\todo{If the message's originator is itself an agent we don't fully trust, who composes the bundled semantic model? Discuss design space honestly.}
+
+% ============================================================
+\section{Limitations and Future Work}
+\label{sec:limitations}
+
+\todo[inline]{0.5 pages. Honest about what we haven't done. The bootstrap problem above; the assumption that the trusted compute substrate is actually trusted; the dependence on agents producing meaningful purpose declarations; the limits of FL when deployments are very few or very small.}
+
+% ============================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+\todo[inline]{0.25 pages.}
+
+We have proposed a purpose- and context-driven trust model for multi-agent AI communication, shifting trust evaluation from the principal level to the per-message level, and a federated learning methodology for training the semantic models that drive this trust evaluation across organizational boundaries. Together, the two contributions address a structural blind spot in current zero-trust architectures for agentic AI: principal-based trust cannot detect when an authenticated, behaviorally-good-standing agent has been hijacked or compromised within a session. By relocating trust to the message and grounding it in purpose and accumulated context, the system bounds the damage any single compromised agent can do to the purpose-justified exposure of one hop.
+
+% ============================================================
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references}
+
+% ============================================================
+% REFERENCES SKELETON
+% Need to populate references.bib with entries for:
+% - REF:nist-zta: NIST SP 800-207, Zero Trust Architecture, 2020
+% - REF:mcp: Model Context Protocol (Anthropic), 2024
+% - REF:a2a: Agent-to-Agent Protocol (Google), 2025
+% - REF:spiffe: SPIFFE / SPIRE specifications, CNCF
+% - REF:macaroons: Birgisson et al., "Macaroons", NDSS 2014
+% - REF:vc: W3C Verifiable Credentials Data Model 2.0, 2025
+% - REF:sticky-policies: Pearson & Casassa Mont, sticky policies, IEEE Computer 2011
+% - REF:airgap: Bagdasarian et al., "AirGapAgent", CCS 2024
+% - REF:conseca: Tsai & Bagdasarian, "Conseca", HotOS 2025
+% - REF:nissenbaum: Nissenbaum, "Privacy as Contextual Integrity", Washington Law Review 2004
+% - REF:fedavg: McMahan et al., AISTATS 2017
+% - REF:fedprox: Li et al., MLSys 2020
+% - REF:scaffold: Karimireddy et al., ICML 2020
+% - REF:fednova: Wang et al., NeurIPS 2020
+% - REF:fl-survey: Kairouz et al., Foundations and Trends in ML 2021
+% - REF:dpsgd: Abadi et al., CCS 2016
+% - REF:flower: Beutel et al., 2020
+% - REF:trust-scoring-survey: a recent survey on dynamic trust scoring
+% ============================================================
+
+\end{document}
