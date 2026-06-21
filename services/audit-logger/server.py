@@ -1,14 +1,11 @@
 """
 ZTA Audit Logger Service
 ==========================
-Append-only event sink for the federated control plane.  Every sidecar,
-PDP, scorer, and dispatcher emits events here; the behavior PDP and
-revocation dispatcher both read from it as their primary signal source.
-
-This is the missing service from the proposal:
-    "decomposed into separate services for PDP, auth gateway, trust
-     scorer, revocation dispatcher, and audit logger."
-                — Independent Study Proposal (Spring 2026), §1
+Append-only event sink for the testbed.  Sidecars emit events here as
+messages traverse the agent chain.  In Track 2 this captured signal is
+the raw material for the federated-learning training set: the local,
+per-deployment record of agent interactions from which the message-resident
+semantic models are trained.
 
 Design choices:
   - SQLite WAL mode: durable, queryable with SQL, single-file deploy.
@@ -77,7 +74,7 @@ def _init_db() -> None:
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 ts          REAL    NOT NULL,           -- unix epoch seconds
                 event_type  TEXT    NOT NULL,
-                source      TEXT    NOT NULL,           -- emitter (sidecar name, pdp name)
+                source      TEXT    NOT NULL,           -- emitter (e.g. a sidecar name)
                 agent_id    TEXT,                       -- subject of the event, if any
                 target      TEXT,                       -- target component, if any
                 severity    REAL,                       -- in [0, 1] for evaluable events
@@ -102,31 +99,33 @@ def _db():
 # =============================================================================
 # Event types
 # =============================================================================
-# Defined as a closed set so the behavior PDP can rely on stable categories.
-# New event types should be added here with a one-line semantics comment.
+# Defined as a closed set so downstream consumers can rely on stable
+# categories.  New event types should be added here with a one-line
+# semantics comment.
 
 KNOWN_EVENT_TYPES = {
-    # Sidecar pipeline outcomes
+    # Sidecar pipeline outcomes — emitted by the per-hop sidecar pipeline
+    # (verify -> trust_eval -> transform -> integrate) as messages traverse
+    # the agent chain.
     "request.allowed",        # full pipeline passed; request forwarded upstream
     "request.denied",         # any middleware blocked the request
-    # Trust scorer outputs
+    #
+    # Legacy Track 1 event types.  These were emitted by the central trust
+    # scorer, the authz PDP, micro-segmentation, the JWT/auth gateway, the
+    # revocation dispatcher, and the behavior PDP — services that have since
+    # been removed.  They are retained so historical and replayed events still
+    # validate; adapting this set to Track 2 per-message trust events is
+    # later-milestone work.
     "trust.score",            # composite score recorded for an (agent, target, path)
     "trust.injection",        # high-confidence prompt-injection detected
-    # OPA / authz PDP
-    "policy.deny",            # OPA returned allow=false
-    # WAF
+    "policy.deny",            # authz PDP returned allow=false
     "waf.block",              # WAF rule fired (sqli, xss, rate-limit)
-    # Micro-segmentation
     "microseg.deny",          # source agent not in ALLOWED_SOURCES
-    # JWT / auth
     "auth.fail",              # invalid / expired / mismatched token
     "auth.revoked_use",       # caller presented a revoked jti or quarantined agent
-    # Revocation dispatcher
     "revocation.issued",      # a jti or agent_id was added to the deny list
-    # Behavior PDP
     "behavior.deny",          # behavior PDP returned block
     "behavior.step_up",       # behavior PDP returned step_up
-    # DLP
     "dlp.hit",                # response body matched a sensitive-data pattern
 }
 
@@ -236,7 +235,7 @@ def list_events(
     since: Optional[float] = Query(None, description="Unix epoch seconds; events with ts >= since"),
     limit: int = Query(100, ge=1, le=10000),
 ):
-    """Query events. Used by the behavior PDP and by operators for forensics."""
+    """Query events — used by operators for forensics and to assemble FL training data."""
     sql = "SELECT id, ts, event_type, source, agent_id, target, severity, data FROM events WHERE 1=1"
     params: list[Any] = []
     if agent_id is not None:
@@ -268,7 +267,7 @@ def agent_summary(
     agent_id: str,
     window_seconds: int = Query(3600, ge=1, le=86400 * 7),
 ):
-    """Behavior-PDP-friendly aggregation: counts per event_type within a window."""
+    """Per-agent aggregation: counts per event_type within a window."""
     cutoff = time.time() - window_seconds
     with _db() as conn:
         rows = conn.execute(
@@ -298,9 +297,8 @@ def agent_summary(
 def admin_delete_events(agent_id: Optional[str] = None,
                         event_type: Optional[str] = None):
     """TEST ONLY: delete events. Filter by agent_id and/or event_type.
-    The ablation harness uses this between configurations to prevent
-    earlier-config injection events from biasing the behavior PDP's
-    R2 rule (which queries audit, not trust scorer history)."""
+    The test harness uses this between configurations to prevent
+    earlier-config events from biasing later runs."""
     sql = "DELETE FROM events WHERE 1=1"
     params: list[Any] = []
     if agent_id is not None:
