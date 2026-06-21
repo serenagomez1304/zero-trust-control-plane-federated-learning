@@ -1,7 +1,0 @@
-| scenario_id | expected | BASELINE |
-|---|---|---|
-| tt-001 | DENY | MICROSEG |
-| tt-002 | DENY | MICROSEG |
-| tt-003 | ALLOW | ALLOWED |
-| tt-004 | DENY | MICROSEG |
-| tt-005 | DENY | MICROSEG |
