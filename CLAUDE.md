@@ -55,11 +55,22 @@ Goal: get one message moving through the system with the new structure (`content
 - `mu.synthesize` returns the latest response
 
 Acceptance criteria:
-- Single user request flows end-to-end through one agent chain (user → supervisor → airline-agent)
-- Message format is documented and the schema is in code
-- Sidecar middleware pipeline executes the 4 stages
-- All previous trust-scorer references are removed from the active code path
-- Tests in `tests/test_a2a.py` pass with the new message format
+- [x] Single user request flows end-to-end through one agent chain (user → supervisor → airline-agent) — `demo/trust_chain_demo.py`, in-process
+- [x] Message format is documented and the schema is in code — `agents/a2a/trust.py` + `docs/message_format.md`
+- [x] Sidecar middleware pipeline executes the 4 stages — `agents/a2a/substrate.py` (`process_hop`: verify → trust_eval → transform → integrate, plus `synthesize`)
+- [x] All previous trust-scorer references are removed from the active code path
+- [x] Tests in `tests/test_a2a.py` pass with the new message format — 42 passing (23 original + 19 new)
+
+**M1 implementation decisions (for continuity):**
+- The 4-stage pipeline is implemented in a **Python substrate module** (`agents/a2a/substrate.py`), not the C# `zta-sidecar`. This is what `tests/test_a2a.py` exercises and what the demo runs — no Docker/MCP/LLM needed for the stub milestone.
+- The end-to-end path is an **in-process stub chain** (`ChainAgent` callables with canned purposes/responses), not real A2A servers over HTTP.
+- The semantic model `mu` is the **stub** (`StubSemanticModel`): `trust_eval`→1.0, `transform`→unchanged, `integrate`→append, `synthesize`→latest.
+- `sigma` signatures are **keyless SHA-256 stubs** — tamper-detecting but not authentication.
+
+**Deferred from M1 (documented future work, not dropped):**
+- Running the pipeline in the **real over-the-wire substrate** (C# `zta-sidecar` or a Python sidecar process, trust envelope in A2A metadata) — needed for the rogue-agent isolation demo (M3) and overhead measurement (M6).
+- The **real semantic model** (M2) replaces the stub; `resolve_mu` loads it from `Mu`.
+- **Real cryptographic signing** of `sigma` replaces the hash stub.
 
 **After Milestone 1**, we proceed in order: real semantic model (M2), rogue-agent attack harness (M3), federated learning setup (M4), heterogeneity characterization (M5), overhead measurement (M6).
 
@@ -125,6 +136,7 @@ These live alongside the codebase and should be consulted when context is needed
 - **`docs/ClaudeCode_Brief.docx`** — the full handoff brief; milestones, what-to-keep/drop, design notes
 - **`docs/Track2_Brainstorm_v2.docx`** — design rationale, prior art positioning, open design questions
 - **`docs/paper_skeleton.tex`** — paper section structure and algorithm pseudocode (the per-hop algorithm in §4.2 is the spec for the sidecar pipeline)
+- **`docs/message_format.md`** — M1 spec for the message format (`content`, `mu`, `kappa`, `sigma`) and the per-hop pipeline, pointing to the code (`agents/a2a/trust.py`, `agents/a2a/substrate.py`)
 - **`docs/abstract.md`** — the latest abstract version (also reproduced below for quick reference)
 
 ---
