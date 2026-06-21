@@ -46,7 +46,23 @@ Today's principal-based trust catches none of these because the agent's identity
 
 ## Current milestone
 
-**Milestone 1: end-to-end message flow with stubs.**
+**Milestone 3 (next): rogue-agent attack harness.** M1 and M2 are complete (see below). M3 implements the three attack classes (rogue substitution, prompt injection, supply-chain compromise) as test cases the per-message trust model catches but a principal-only baseline misses, producing the data for Table 1.
+
+---
+
+### ✅ Milestone 2: real semantic model (complete)
+
+Replaced the M1 stubs with a real implementation. **Decisions (locked with advisor):** only `trust_eval` is a learned model (frozen sentence-transformer encoder + trainable MLP head — M4 federates just the head); `transform`/`integrate`/`synthesize` are real-but-deterministic. Trained on synthetic `(intent, declared_purpose, context) → consistent?` tuples generated from the testbed scenarios.
+
+- Code: `agents/a2a/semantic/` (`encoders.py`, `data.py`, `model.py`, `train.py`), wired via `agents/a2a/trust.py::resolve_mu`. Design note: `docs/m2_design.md`.
+- Trained artifact committed: `agents/a2a/semantic/artifacts/trust_eval_v0.pt` (head only; encoder loaded by spec). Retrain: `python -m agents.a2a.semantic.train`.
+- Results: 100% held-out accuracy on synthetic data; legit purpose ≈0.97 trust, rogue purpose ≈0.00 → rejected mid-chain. Demo: `demo/semantic_trust_demo.py`. Latency (`benchmarks/trust_eval_latency.py`): ~16 ms/hop real encoder, ~0.06 ms/hop hashing encoder (CPU).
+- Tests: `tests/test_semantic_model.py` (offline hashing encoder, skips without the `ml` extra). Full suite 61 passing.
+- **Deferred:** full-encoder fine-tuning; generative `transform`/`synthesize`; `trust_eval` consuming the attestation. See `TODO.md`.
+
+---
+
+### ✅ Milestone 1: end-to-end message flow with stubs (complete)
 
 Goal: get one message moving through the system with the new structure (`content`, `mu`, `kappa`, `sigma`), the new 4-stage sidecar pipeline (verify → trust_eval → transform → integrate), and an end-to-end demo. The semantic model is stubbed at this stage:
 - `mu.trust_eval` always returns 1.0
