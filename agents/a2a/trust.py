@@ -43,10 +43,14 @@ Open design questions (tracked in CLAUDE.md, not blockers for M1):
 
 from __future__ import annotations
 
+import logging
+import os
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
+
+logger = logging.getLogger("a2a.trust")
 
 
 # =============================================================================
@@ -215,13 +219,42 @@ class StubSemanticModel(SemanticModel):
         return kappa.entries[-1].response
 
 
+# Default location of the trained trust_eval artifact (written by
+# agents.a2a.semantic.train).  A message's ``mu.params["artifact"]`` overrides it.
+DEFAULT_ARTIFACT = os.path.join(os.path.dirname(__file__), "semantic", "artifacts", "trust_eval_v0.pt")
+
+# Cache resolved real models by artifact path so the encoder/head load once.
+_REAL_MODEL_CACHE: Dict[str, SemanticModel] = {}
+
+
 def resolve_mu(mu: Mu) -> SemanticModel:
     """Resolve a message's ``mu`` descriptor to its executable semantic model.
 
-    Milestone 1: always returns the stub, regardless of the descriptor.  M2 will
-    load the real model identified/parameterized by ``mu``.
+    - A descriptor whose ``model_id`` starts with ``"stub"`` resolves to the M1
+      stub (``StubSemanticModel``).
+    - Otherwise the M2 real model (``RealSemanticModel`` wrapping a trained
+      ``TrustEvalModel``) is loaded from ``mu.params["artifact"]`` or
+      ``DEFAULT_ARTIFACT``.  If the artifact or ML deps are unavailable, this
+      logs a warning and falls back to the stub so the pipeline still runs.
     """
-    return StubSemanticModel()
+    if mu.model_id.startswith("stub"):
+        return StubSemanticModel()
+
+    artifact = mu.params.get("artifact") or DEFAULT_ARTIFACT
+    cached = _REAL_MODEL_CACHE.get(artifact)
+    if cached is not None:
+        return cached
+
+    try:
+        # Lazy import: keeps torch / sentence-transformers out of the base import path.
+        from agents.a2a.semantic.model import RealSemanticModel, TrustEvalModel
+
+        real = RealSemanticModel(TrustEvalModel.load(artifact))
+        _REAL_MODEL_CACHE[artifact] = real
+        return real
+    except Exception as exc:  # missing artifact, missing torch, etc.
+        logger.warning("resolve_mu: falling back to stub for mu=%s (%s)", mu.model_id, exc)
+        return StubSemanticModel()
 
 
 # =============================================================================
