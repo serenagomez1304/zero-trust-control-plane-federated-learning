@@ -47,6 +47,27 @@ from agents.a2a.models import (
     TextPart,
 )
 from agents.a2a.server import A2AServer
+from agents.a2a.trust import (
+    Attestation,
+    Content,
+    ContextEntry,
+    DeclaredPurpose,
+    Kappa,
+    Mu,
+    Sigma,
+    StubSemanticModel,
+    TrustMessage,
+    resolve_mu,
+)
+from agents.a2a.substrate import (
+    ChainAgent,
+    TRUST_THRESHOLD,
+    originate,
+    process_hop,
+    run_chain,
+    synthesize,
+    verify_signature,
+)
 
 
 # =============================================================================
@@ -426,6 +447,197 @@ class TestA2AServer:
         assert "submitted" in states
         assert "working" in states
         assert "completed" in states
+
+
+# =============================================================================
+# Per-Message Trust Model — Message Format (trust.py)
+# =============================================================================
+
+def make_chain_agents():
+    """A stub user -> supervisor -> airline-agent chain."""
+    supervisor = ChainAgent(
+        agent_id="supervisor",
+        declared_purpose=DeclaredPurpose(label="route-travel", description="route to a specialist"),
+        attestation=Attestation(agent_id="supervisor"),
+        handler=lambda view: "Routing JFK->LAX request to the airline specialist",
+    )
+    airline = ChainAgent(
+        agent_id="airline-agent",
+        declared_purpose=DeclaredPurpose(label="flight-search", description="search and book flights"),
+        attestation=Attestation(agent_id="airline-agent"),
+        handler=lambda view: "Booked flight AA123 JFK->LAX on 2025-07-01, confirmation XJ7F2",
+    )
+    return supervisor, airline
+
+
+class TestTrustMessageModels:
+    """The message format m = <content, mu, kappa, sigma>."""
+
+    def test_trust_message_construction(self):
+        m = TrustMessage(
+            content=Content(payload="hello"),
+            mu=Mu(),
+            kappa=Kappa(intent="hello"),
+            sigma=Sigma(chain=["stub-sig:abc"]),
+        )
+        assert m.content.payload == "hello"
+        assert m.kappa.intent == "hello"
+        assert m.mu.bundle == ["trust_eval", "transform", "integrate", "synthesize"]
+
+    def test_trust_message_roundtrip(self):
+        m = originate("Book a flight JFK to LAX")
+        m2 = TrustMessage.model_validate_json(m.model_dump_json())
+        assert m2.content.payload == m.content.payload
+        assert m2.kappa.intent == m.kappa.intent
+        assert m2.sigma.chain == m.sigma.chain
+
+    def test_mu_no_protected_namespace_warning(self):
+        """Mu.model_id must not trip Pydantic's protected 'model_' namespace."""
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            mu = Mu(model_id="custom")
+        assert mu.model_id == "custom"
+
+    def test_kappa_starts_empty(self):
+        m = originate("intent text")
+        assert m.kappa.intent == "intent text"
+        assert m.kappa.entries == []
+
+
+class TestStubSemanticModel:
+    """The four stubbed capabilities of mu (Milestone 1)."""
+
+    def setup_method(self):
+        self.mu = StubSemanticModel()
+        self.purpose = DeclaredPurpose(label="flight-search")
+        self.att = Attestation(agent_id="airline-agent")
+        self.kappa = Kappa(intent="book a flight")
+
+    def test_trust_eval_always_one(self):
+        assert self.mu.trust_eval(self.purpose, self.att, self.kappa) == 1.0
+
+    def test_transform_returns_content_unchanged(self):
+        content = Content(payload="raw payload", data={"k": "v"})
+        view = self.mu.transform(content, self.purpose, self.kappa)
+        assert view == content
+
+    def test_integrate_appends_response(self):
+        k2 = self.mu.integrate("a response", self.kappa, self.purpose)
+        assert len(k2.entries) == 1
+        assert k2.entries[0] == ContextEntry(purpose="flight-search", response="a response")
+        # original kappa is not mutated
+        assert self.kappa.entries == []
+
+    def test_synthesize_returns_latest_response(self):
+        k = Kappa(intent="x", entries=[
+            ContextEntry(purpose="route-travel", response="first"),
+            ContextEntry(purpose="flight-search", response="second"),
+        ])
+        assert self.mu.synthesize(k) == "second"
+
+    def test_synthesize_empty_context(self):
+        assert self.mu.synthesize(Kappa(intent="x")) == ""
+
+    def test_resolve_mu_returns_stub(self):
+        assert isinstance(resolve_mu(Mu()), StubSemanticModel)
+
+
+# =============================================================================
+# Per-Message Trust Model — Substrate Pipeline (substrate.py)
+# =============================================================================
+
+class TestSubstratePipeline:
+    """The per-hop pipeline: verify -> trust_eval -> transform -> integrate."""
+
+    def test_originate_signs_initial_bundle(self):
+        m = originate("an intent")
+        assert len(m.sigma.chain) == 1
+        assert verify_signature(m) is True
+
+    def test_verify_detects_tampering(self):
+        m = originate("an intent")
+        m.content.payload = "tampered"
+        assert verify_signature(m) is False
+
+    def test_verify_empty_chain_fails(self):
+        m = originate("an intent")
+        m.sigma.chain = []
+        assert verify_signature(m) is False
+
+    def test_process_hop_accepts_and_resigns(self):
+        supervisor, _ = make_chain_agents()
+        m = originate("Book a flight")
+        result = process_hop(m, supervisor)
+
+        assert result.accepted is True
+        assert result.trust == 1.0
+        # agent saw the (unchanged) view
+        assert result.view.payload == "Book a flight"
+        assert result.response.startswith("Routing")
+        # resigned message: new context entry + extended, valid signature chain
+        assert len(result.message.kappa.entries) == 1
+        assert len(result.message.sigma.chain) == 2
+        assert verify_signature(result.message) is True
+
+    def test_process_hop_rejects_below_threshold(self):
+        supervisor, _ = make_chain_agents()
+        m = originate("Book a flight")
+        # Stub trust_eval returns 1.0; a threshold above it forces the reject path.
+        result = process_hop(m, supervisor, threshold=1.5)
+        assert result.accepted is False
+        assert result.message is None
+        assert "below threshold" in result.reason
+
+    def test_process_hop_rejects_tampered_message(self):
+        supervisor, _ = make_chain_agents()
+        m = originate("Book a flight")
+        m.content.payload = "tampered after signing"
+        result = process_hop(m, supervisor)
+        assert result.accepted is False
+        assert "signature" in result.reason
+
+
+class TestEndToEndChain:
+    """user -> supervisor -> airline-agent end-to-end (Milestone 1 acceptance)."""
+
+    def test_full_chain_completes_and_synthesizes(self):
+        supervisor, airline = make_chain_agents()
+        m = originate("Book a flight from JFK to LAX on 2025-07-01")
+        result = run_chain(m, [supervisor, airline])
+
+        assert result.completed is True
+        assert result.rejected_at is None
+        # one accepted hop per agent
+        assert [h.agent_id for h in result.hops] == ["supervisor", "airline-agent"]
+        assert all(h.accepted for h in result.hops)
+        # context accumulated one entry per hop, in order
+        purposes = [e.purpose for e in result.final_message.kappa.entries]
+        assert purposes == ["route-travel", "flight-search"]
+        # signature chain: origin + one per hop, still valid
+        assert len(result.final_message.sigma.chain) == 3
+        assert verify_signature(result.final_message) is True
+        # final response synthesized from accumulated context (latest response, per stub)
+        assert result.response == "Booked flight AA123 JFK->LAX on 2025-07-01, confirmation XJ7F2"
+        assert result.response == synthesize(result.final_message)
+
+    def test_chain_stops_at_rejected_hop(self):
+        supervisor, airline = make_chain_agents()
+        m = originate("Book a flight")
+        # Threshold above the stub's 1.0 rejects the very first hop.
+        result = run_chain(m, [supervisor, airline], threshold=1.5)
+        assert result.completed is False
+        assert result.rejected_at == "supervisor"
+        assert len(result.hops) == 1
+        assert result.response is None
+
+    def test_intent_preserved_through_chain(self):
+        supervisor, airline = make_chain_agents()
+        m = originate("Book a flight from JFK to LAX")
+        result = run_chain(m, [supervisor, airline])
+        assert result.final_message.kappa.intent == "Book a flight from JFK to LAX"
+        # raw content is never mutated by the chain
+        assert result.final_message.content.payload == "Book a flight from JFK to LAX"
 
 
 # =============================================================================
