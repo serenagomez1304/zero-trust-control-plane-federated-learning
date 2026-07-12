@@ -47,7 +47,9 @@ below if real over-the-wire numbers are wanted.
 - **Task-heterogeneity partitioning (M5).** The `(label, kind)` partition
   induces agent-population + threat-profile skew but ~zero task_distribution
   skew; add task domain to the partition key to exercise the third source.
-- **Multi-seed variance / larger K** for the FL and heterogeneity sweeps.
+- **Multi-seed variance / larger K:** done for FL + heterogeneity
+  (`run_fl_robustness.py`, seed-averaged `run_heterogeneity.py`, K∈{5,10,20},
+  3 seeds). Remaining: more seeds/K and the real-encoder runs for final numbers.
 
 ## Open questions (from brief §7; revisit as they bite)
 - "Purpose" representation: currently a small structured object

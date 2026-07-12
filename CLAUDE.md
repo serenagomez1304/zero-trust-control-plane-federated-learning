@@ -46,7 +46,7 @@ Today's principal-based trust catches none of these because the agent's identity
 
 ## Current status
 
-**All six implementation milestones (M1–M6) are complete.** The remaining work is paper-side: plugging the generated results (`evaluation/results/*.{csv,json}`) into the `.tex` tables (Table 1 = `attack_results`, Table 2 = `federated_results`, §5.3 = `heterogeneity_results`, §6.3 = `overhead_results`), writing the prose sections, and — if the real over-the-wire numbers are wanted — the deferred infra work in `TODO.md`. Full suite **94 passing**. Per the working agreement, don't write paper text until we choose to; the skeleton stays fixed until then.
+**All six implementation milestones (M1–M6) are complete**, plus a multi-seed / K-sweep robustness pass on the FL and heterogeneity results (variance bands via `evaluation/run_fl_robustness.py` and the seed-averaged `evaluation/run_heterogeneity.py`). The remaining work is paper-side: plugging the generated results (`evaluation/results/*.{csv,json}`) into the `.tex` tables (Table 1 = `attack_results`, Table 2 = `federated_results` / `fl_robustness_results`, §5.3 = `heterogeneity_results`, §6.3 = `overhead_results`), writing the prose sections, and — if the real over-the-wire numbers are wanted — the deferred infra work in `TODO.md`. Full suite **95 passing**. Per the working agreement, don't write paper text until we choose to; the skeleton stays fixed until then.
 
 ---
 

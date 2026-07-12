@@ -50,7 +50,17 @@ finding: FL ≈ centralized while data stays local, and standard aggregation
 strategies behave differently on this non-IID class. Numbers are a synthetic
 characterization, not a real-deployment benchmark.
 
+## Robustness (multi-seed + K sweep)
+
+`evaluation/run_fl_robustness.py` (via `federated_train_multiseed`) reports
+mean±std final accuracy over seeds, for K ∈ {5, 10, 20} × {IID, α=1.0, α=0.1}.
+This replaces the single-seed point estimates with variance bands and shows the
+honest picture the single run hid: accuracy falls and **variance grows** as
+clients increase (less data each) and heterogeneity rises — e.g. FedAvg at α=0.1
+is ~0.87±0.15 at K=5 and lower at K=20. Results:
+`evaluation/results/fl_robustness_results.{csv,json}`. (The single-seed
+`run_federated.py` / `federated_results.*` remains as the quick Table 2 sanity check.)
+
 ## Deferred (see TODO.md)
-Larger K sweeps (K→20) and multi-seed variance; the real-encoder FL run;
-formal heterogeneity metrics correlated with FL performance (that is M5);
-optional DP-SGD.
+The real-encoder FL run; formal heterogeneity metrics correlated with FL
+performance (that is M5); optional DP-SGD.

@@ -26,11 +26,16 @@ that source is the mean over clients (KL is also available):
 reports the heterogeneity scores and the FL accuracy of all four strategies,
 then the Pearson correlation between overall heterogeneity and accuracy.
 
-Result (synthetic, `hashing:256`, K=5):
-- Heterogeneity rises smoothly as α falls (overall ≈0.004 at IID → ≈0.167 at α=0.05).
-- FL accuracy falls as heterogeneity rises, with a **strong negative
-  correlation** for every strategy (r ≈ −0.84 to −0.95). SCAFFOLD degrades most
-  under extreme skew.
+Result (synthetic, `hashing:256`, K=5, seed-averaged over 3 seeds):
+- Heterogeneity rises smoothly as α falls (overall ≈0.003 at IID → ≈0.205 at α=0.05).
+- FL accuracy (mean±std over seeds) falls as heterogeneity rises, with a
+  **strong negative correlation** for every strategy (r ≈ −0.74 to −0.98), and
+  the accuracy variance grows under stronger skew.
+
+The sweep is averaged over seeds (`--seeds`, default 3): for each α, both the
+heterogeneity scores and each strategy's accuracy are averaged over seeds (the
+seed varies the partition and the FL run), and the correlation is computed on
+the seed-means.
 
 ## Honest limitation
 
