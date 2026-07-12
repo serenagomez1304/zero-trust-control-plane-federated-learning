@@ -69,6 +69,11 @@ class _TrustHead(nn.Module):
         return self.net(x).squeeze(-1)  # logits
 
 
+def build_trust_head(in_dim: int, hidden: int = 128, dropout: float = 0.1) -> nn.Module:
+    """Construct a fresh trust head — used by the federated simulation (M4)."""
+    return _TrustHead(in_dim, hidden=hidden, dropout=dropout)
+
+
 class TrustEvalModel:
     """Frozen-encoder + trainable-head consistency classifier."""
 
@@ -90,6 +95,14 @@ class TrustEvalModel:
         e_p = self.encoder.encode(purposes)
         e_c = self.encoder.encode(contexts)
         return np.concatenate([e_i, e_p, e_c, e_i * e_p], axis=1).astype(np.float32)
+
+    def features_for(self, examples: Sequence[TrustExample]) -> np.ndarray:
+        """Encode examples into the head's input features (frozen encoder).
+
+        Exposed for the federated simulation (M4), which precomputes each
+        client's feature matrix once and then trains the head over many rounds.
+        """
+        return self._features(_triples(examples))
 
     # --- training -------------------------------------------------------------
 
