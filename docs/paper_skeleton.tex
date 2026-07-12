@@ -1,6 +1,8 @@
 \documentclass[sigconf,nonacm]{acmart}
 \usepackage{xcolor}
 \usepackage{todonotes}
+% acmart loads newtxmath, which already defines \Bbbk; free it so amssymb can.
+\let\Bbbk\relax
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
 \usepackage{algorithm}
