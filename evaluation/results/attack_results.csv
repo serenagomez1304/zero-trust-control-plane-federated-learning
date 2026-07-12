@@ -1,0 +1,4 @@
+attack_class,n,asr_baseline,asr_ours,exposure_baseline,exposure_ours
+substitution,20,1.0,0.0,1.0,0.0
+prompt_injection,26,1.0,0.0,1.0,0.0
+supply_chain,20,1.0,0.0,1.0,0.0

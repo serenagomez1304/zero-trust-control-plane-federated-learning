@@ -1,0 +1,26 @@
+[
+  {
+    "attack_class": "substitution",
+    "n": 20,
+    "asr_baseline": 1.0,
+    "asr_ours": 0.0,
+    "exposure_baseline": 1.0,
+    "exposure_ours": 0.0
+  },
+  {
+    "attack_class": "prompt_injection",
+    "n": 26,
+    "asr_baseline": 1.0,
+    "asr_ours": 0.0,
+    "exposure_baseline": 1.0,
+    "exposure_ours": 0.0
+  },
+  {
+    "attack_class": "supply_chain",
+    "n": 20,
+    "asr_baseline": 1.0,
+    "asr_ours": 0.0,
+    "exposure_baseline": 1.0,
+    "exposure_ours": 0.0
+  }
+]
