@@ -65,8 +65,8 @@ Per-hop latency broken down by pipeline stage, throughput, and a comparison agai
 Measures how different the deployments' data distributions are and correlates that with FL performance (§5.3). For each of the three sources (agent-population, task-distribution, threat-profile) it forms per-client categorical marginals and measures Jensen-Shannon divergence from the pooled marginal.
 
 - Code: `agents/a2a/federated/heterogeneity.py` (JS/KL divergence, per-source + overall scores, Pearson). CLI: `evaluation/run_heterogeneity.py` sweeps α and correlates heterogeneity with accuracy → `evaluation/results/heterogeneity_results.{csv,json}`. Design note: `docs/m5_design.md`.
-- Results (synthetic, K=5): heterogeneity rises as α falls (overall ≈0.004 IID → ≈0.167 at α=0.05); FL accuracy falls with it; strong negative correlation for all strategies (r ≈ −0.84 to −0.95). Tests: `tests/test_heterogeneity.py`. Full suite **92 passing**.
-- **Honest limitation:** the M4 `(label, kind)` partition induces agent-population + threat skew but ~zero task heterogeneity (reported faithfully). **Deferred:** task-heterogeneity partitioning; Wasserstein on an embedded space; multi-seed variance.
+- Results (synthetic, K=5, seed-averaged): heterogeneity rises as α falls (overall ≈0.003 IID → ≈0.245 at α=0.05) across **all three sources**; FL accuracy falls with it; strong negative correlation for all strategies (r ≈ −0.84 to −0.999). Tests: `tests/test_heterogeneity.py`.
+- The partition key is `(label, kind, domain)` — `domain` is the intent's task domain recorded on `TrustExample` — so all three sources (agent-population, task-distribution, threat-profile) are exercised. **Deferred:** Wasserstein on an embedded space.
 
 ---
 

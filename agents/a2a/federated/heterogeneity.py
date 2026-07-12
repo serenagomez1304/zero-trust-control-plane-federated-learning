@@ -45,10 +45,16 @@ def task_domain(intent: str) -> str:
     return "other"
 
 
+def _example_task_domain(e: TrustExample) -> str:
+    """Prefer the recorded task domain; fall back to inferring it from the intent."""
+    domain = getattr(e, "domain", "other")
+    return domain if domain and domain != "other" else task_domain(e.intent)
+
+
 # key functions for the three heterogeneity sources
 DIMENSIONS: Dict[str, Callable[[TrustExample], str]] = {
     "agent_population": lambda e: e.purpose_label,
-    "task_distribution": lambda e: task_domain(e.intent),
+    "task_distribution": _example_task_domain,
     "threat_profile": lambda e: e.kind,
 }
 

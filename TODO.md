@@ -44,9 +44,9 @@ below if real over-the-wire numbers are wanted.
   DistilBERT-class model end-to-end is a possible later upgrade.
 - **Generative `transform`/`synthesize`.** Deterministic for now; could become
   learned/LLM-backed if the paper needs it.
-- **Task-heterogeneity partitioning (M5).** The `(label, kind)` partition
-  induces agent-population + threat-profile skew but ~zero task_distribution
-  skew; add task domain to the partition key to exercise the third source.
+- **Task-heterogeneity partitioning (M5): done.** The partition key is now
+  `(label, kind, domain)` (task domain recorded on `TrustExample`), so all three
+  heterogeneity sources are exercised.
 - **Multi-seed variance / larger K:** done for FL + heterogeneity
   (`run_fl_robustness.py`, seed-averaged `run_heterogeneity.py`, K∈{5,10,20},
   3 seeds). Remaining: more seeds/K and the real-encoder runs for final numbers.

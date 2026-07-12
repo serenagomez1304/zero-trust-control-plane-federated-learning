@@ -18,26 +18,26 @@
       "n_clients": 5,
       "strategy": "fedavg",
       "level": "alpha=1.0",
-      "mean_accuracy": 0.9408,
-      "std_accuracy": 0.0819,
+      "mean_accuracy": 0.9483,
+      "std_accuracy": 0.0297,
       "seeds": 3,
       "per_seed": [
-        1.0,
-        0.825,
-        0.9975
+        0.9775,
+        0.96,
+        0.9075
       ]
     },
     {
       "n_clients": 5,
       "strategy": "fedavg",
       "level": "alpha=0.1",
-      "mean_accuracy": 0.8692,
-      "std_accuracy": 0.1511,
+      "mean_accuracy": 0.7892,
+      "std_accuracy": 0.0927,
       "seeds": 3,
       "per_seed": [
-        0.95,
-        1.0,
-        0.6575
+        0.73,
+        0.92,
+        0.7175
       ]
     },
     {
@@ -57,26 +57,26 @@
       "n_clients": 5,
       "strategy": "fedprox",
       "level": "alpha=1.0",
-      "mean_accuracy": 0.8667,
-      "std_accuracy": 0.0602,
+      "mean_accuracy": 0.8433,
+      "std_accuracy": 0.017,
       "seeds": 3,
       "per_seed": [
-        0.8675,
-        0.7925,
-        0.94
+        0.85,
+        0.86,
+        0.82
       ]
     },
     {
       "n_clients": 5,
       "strategy": "fedprox",
       "level": "alpha=0.1",
-      "mean_accuracy": 0.7467,
-      "std_accuracy": 0.1008,
+      "mean_accuracy": 0.6625,
+      "std_accuracy": 0.0714,
       "seeds": 3,
       "per_seed": [
-        0.85,
-        0.61,
-        0.78
+        0.725,
+        0.5625,
+        0.7
       ]
     },
     {
@@ -96,26 +96,26 @@
       "n_clients": 5,
       "strategy": "scaffold",
       "level": "alpha=1.0",
-      "mean_accuracy": 0.9283,
-      "std_accuracy": 0.0697,
+      "mean_accuracy": 0.9808,
+      "std_accuracy": 0.0082,
       "seeds": 3,
       "per_seed": [
-        0.9725,
-        0.83,
-        0.9825
+        0.975,
+        0.9925,
+        0.975
       ]
     },
     {
       "n_clients": 5,
       "strategy": "scaffold",
       "level": "alpha=0.1",
-      "mean_accuracy": 0.7558,
-      "std_accuracy": 0.0419,
+      "mean_accuracy": 0.7683,
+      "std_accuracy": 0.09,
       "seeds": 3,
       "per_seed": [
-        0.8125,
-        0.7425,
-        0.7125
+        0.74,
+        0.89,
+        0.675
       ]
     },
     {
@@ -135,26 +135,26 @@
       "n_clients": 5,
       "strategy": "fednova",
       "level": "alpha=1.0",
-      "mean_accuracy": 0.9425,
-      "std_accuracy": 0.0796,
+      "mean_accuracy": 0.955,
+      "std_accuracy": 0.0329,
       "seeds": 3,
       "per_seed": [
-        1.0,
-        0.83,
-        0.9975
+        0.9875,
+        0.9675,
+        0.91
       ]
     },
     {
       "n_clients": 5,
       "strategy": "fednova",
       "level": "alpha=0.1",
-      "mean_accuracy": 0.8542,
-      "std_accuracy": 0.1593,
+      "mean_accuracy": 0.755,
+      "std_accuracy": 0.073,
       "seeds": 3,
       "per_seed": [
-        0.93,
-        1.0,
-        0.6325
+        0.85,
+        0.7425,
+        0.6725
       ]
     },
     {
@@ -174,26 +174,26 @@
       "n_clients": 10,
       "strategy": "fedavg",
       "level": "alpha=1.0",
-      "mean_accuracy": 0.83,
-      "std_accuracy": 0.0035,
+      "mean_accuracy": 0.8425,
+      "std_accuracy": 0.0265,
       "seeds": 3,
       "per_seed": [
-        0.825,
-        0.8325,
-        0.8325
+        0.805,
+        0.8625,
+        0.86
       ]
     },
     {
       "n_clients": 10,
       "strategy": "fedavg",
       "level": "alpha=0.1",
-      "mean_accuracy": 0.7992,
-      "std_accuracy": 0.0585,
+      "mean_accuracy": 0.7258,
+      "std_accuracy": 0.0452,
       "seeds": 3,
       "per_seed": [
-        0.875,
-        0.79,
-        0.7325
+        0.7775,
+        0.7325,
+        0.6675
       ]
     },
     {
@@ -213,25 +213,25 @@
       "n_clients": 10,
       "strategy": "fedprox",
       "level": "alpha=1.0",
-      "mean_accuracy": 0.8108,
-      "std_accuracy": 0.0136,
+      "mean_accuracy": 0.7942,
+      "std_accuracy": 0.0472,
       "seeds": 3,
       "per_seed": [
-        0.825,
-        0.815,
-        0.7925
+        0.7275,
+        0.83,
+        0.825
       ]
     },
     {
       "n_clients": 10,
       "strategy": "fedprox",
       "level": "alpha=0.1",
-      "mean_accuracy": 0.6967,
-      "std_accuracy": 0.0452,
+      "mean_accuracy": 0.7008,
+      "std_accuracy": 0.0201,
       "seeds": 3,
       "per_seed": [
-        0.6575,
-        0.76,
+        0.7175,
+        0.7125,
         0.6725
       ]
     },
@@ -252,26 +252,26 @@
       "n_clients": 10,
       "strategy": "scaffold",
       "level": "alpha=1.0",
-      "mean_accuracy": 0.7942,
-      "std_accuracy": 0.0306,
+      "mean_accuracy": 0.8133,
+      "std_accuracy": 0.0479,
       "seeds": 3,
       "per_seed": [
-        0.825,
-        0.805,
-        0.7525
+        0.7475,
+        0.86,
+        0.8325
       ]
     },
     {
       "n_clients": 10,
       "strategy": "scaffold",
       "level": "alpha=0.1",
-      "mean_accuracy": 0.66,
-      "std_accuracy": 0.078,
+      "mean_accuracy": 0.7633,
+      "std_accuracy": 0.0484,
       "seeds": 3,
       "per_seed": [
-        0.585,
-        0.7675,
-        0.6275
+        0.7,
+        0.7725,
+        0.8175
       ]
     },
     {
@@ -291,26 +291,26 @@
       "n_clients": 10,
       "strategy": "fednova",
       "level": "alpha=1.0",
-      "mean_accuracy": 0.8142,
-      "std_accuracy": 0.0024,
+      "mean_accuracy": 0.8108,
+      "std_accuracy": 0.0608,
       "seeds": 3,
       "per_seed": [
-        0.8125,
-        0.8175,
-        0.8125
+        0.725,
+        0.8575,
+        0.85
       ]
     },
     {
       "n_clients": 10,
       "strategy": "fednova",
       "level": "alpha=0.1",
-      "mean_accuracy": 0.6425,
-      "std_accuracy": 0.082,
+      "mean_accuracy": 0.7425,
+      "std_accuracy": 0.0348,
       "seeds": 3,
       "per_seed": [
-        0.5975,
-        0.7575,
-        0.5725
+        0.7075,
+        0.73,
+        0.79
       ]
     },
     {
@@ -330,26 +330,26 @@
       "n_clients": 20,
       "strategy": "fedavg",
       "level": "alpha=1.0",
-      "mean_accuracy": 0.7917,
-      "std_accuracy": 0.0247,
+      "mean_accuracy": 0.8167,
+      "std_accuracy": 0.0249,
       "seeds": 3,
       "per_seed": [
-        0.815,
-        0.7575,
-        0.8025
+        0.85,
+        0.81,
+        0.79
       ]
     },
     {
       "n_clients": 20,
       "strategy": "fedavg",
       "level": "alpha=0.1",
-      "mean_accuracy": 0.7517,
-      "std_accuracy": 0.0502,
+      "mean_accuracy": 0.6408,
+      "std_accuracy": 0.031,
       "seeds": 3,
       "per_seed": [
-        0.81,
-        0.7575,
-        0.6875
+        0.675,
+        0.6475,
+        0.6
       ]
     },
     {
@@ -369,26 +369,26 @@
       "n_clients": 20,
       "strategy": "fedprox",
       "level": "alpha=1.0",
-      "mean_accuracy": 0.7783,
-      "std_accuracy": 0.0174,
+      "mean_accuracy": 0.795,
+      "std_accuracy": 0.0227,
       "seeds": 3,
       "per_seed": [
+        0.82,
         0.8,
-        0.7575,
-        0.7775
+        0.765
       ]
     },
     {
       "n_clients": 20,
       "strategy": "fedprox",
       "level": "alpha=0.1",
-      "mean_accuracy": 0.7475,
-      "std_accuracy": 0.0408,
+      "mean_accuracy": 0.6492,
+      "std_accuracy": 0.0339,
       "seeds": 3,
       "per_seed": [
-        0.76,
-        0.79,
-        0.6925
+        0.6875,
+        0.655,
+        0.605
       ]
     },
     {
@@ -408,26 +408,26 @@
       "n_clients": 20,
       "strategy": "scaffold",
       "level": "alpha=1.0",
-      "mean_accuracy": 0.7367,
-      "std_accuracy": 0.0472,
+      "mean_accuracy": 0.81,
+      "std_accuracy": 0.0114,
       "seeds": 3,
       "per_seed": [
-        0.7725,
-        0.7675,
-        0.67
+        0.8125,
+        0.8225,
+        0.795
       ]
     },
     {
       "n_clients": 20,
       "strategy": "scaffold",
       "level": "alpha=0.1",
-      "mean_accuracy": 0.6517,
-      "std_accuracy": 0.0344,
+      "mean_accuracy": 0.6767,
+      "std_accuracy": 0.0378,
       "seeds": 3,
       "per_seed": [
-        0.7,
-        0.6325,
-        0.6225
+        0.63,
+        0.6775,
+        0.7225
       ]
     },
     {
@@ -447,26 +447,26 @@
       "n_clients": 20,
       "strategy": "fednova",
       "level": "alpha=1.0",
-      "mean_accuracy": 0.7575,
-      "std_accuracy": 0.0281,
+      "mean_accuracy": 0.8058,
+      "std_accuracy": 0.0176,
       "seeds": 3,
       "per_seed": [
-        0.7875,
-        0.765,
-        0.72
+        0.825,
+        0.81,
+        0.7825
       ]
     },
     {
       "n_clients": 20,
       "strategy": "fednova",
       "level": "alpha=0.1",
-      "mean_accuracy": 0.5733,
-      "std_accuracy": 0.0644,
+      "mean_accuracy": 0.6517,
+      "std_accuracy": 0.0399,
       "seeds": 3,
       "per_seed": [
-        0.5675,
-        0.4975,
-        0.655
+        0.7025,
+        0.605,
+        0.6475
       ]
     }
   ]

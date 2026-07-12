@@ -38,6 +38,7 @@ class TrustExample:
     context: str
     label: int          # 1 = consistent / trustworthy, 0 = inconsistent / rogue
     kind: str           # provenance tag: 'legit' | 'cross_domain' | 'escalation'
+    domain: str = "other"  # task domain of the intent (airline/hotel/car_rental/routing)
 
 
 # -----------------------------------------------------------------------------
@@ -161,7 +162,7 @@ def generate_dataset(n: int = 1200, seed: int = 0) -> List[TrustExample]:
             label, kind = 0, "escalation"
             plabel, pdesc = rng.choice(_ESCALATION_PURPOSES)
 
-        examples.append(TrustExample(intent, plabel, pdesc, context, label, kind))
+        examples.append(TrustExample(intent, plabel, pdesc, context, label, kind, domain=domain))
 
     rng.shuffle(examples)
     return examples

@@ -8,12 +8,12 @@ We use the standard Dirichlet(alpha) scheme: examples are grouped by a key, and
 each group is split across clients with proportions drawn from Dirichlet(alpha).
 Low ``alpha`` → highly skewed (very non-IID); high ``alpha`` → near-uniform (IID).
 
-The default group key is ``(label, kind)``, which simultaneously skews:
-  - the **threat profile** (``label``: consistent vs. rogue balance), and
+The default group key is ``(label, kind, domain)``, which simultaneously skews
+all three heterogeneity sources the paper names:
+  - the **threat profile** (``label``: consistent vs. rogue balance),
   - the **agent-population / attack mix** (``kind``: legit / cross_domain /
-    escalation),
-matching two of the three heterogeneity sources the paper names. (Task/intent
-heterogeneity rides along via ``kind``.)
+    escalation), and
+  - the **task distribution** (``domain``: the intent's task domain).
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from agents.a2a.semantic.data import TrustExample
 
 
 def default_group_key(ex: TrustExample) -> str:
-    return f"{ex.label}:{ex.kind}"
+    return f"{ex.label}:{ex.kind}:{ex.domain}"
 
 
 def partition_dirichlet(
