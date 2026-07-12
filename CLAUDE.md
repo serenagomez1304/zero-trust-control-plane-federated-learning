@@ -46,7 +46,19 @@ Today's principal-based trust catches none of these because the agent's identity
 
 ## Current milestone
 
-**Milestone 3 (next): rogue-agent attack harness.** M1 and M2 are complete (see below). M3 implements the three attack classes (rogue substitution, prompt injection, supply-chain compromise) as test cases the per-message trust model catches but a principal-only baseline misses, producing the data for Table 1.
+**Milestone 4 (next): federated learning setup.** M1–M3 are complete (see below). M4 installs an FL framework (Flower per the brief), simulates K deployments by partitioning the synthetic trust data with controlled non-IID heterogeneity, implements FedAvg/FedProx/SCAFFOLD/FedNova, and trains the `trust_eval` head federally — only the head is federated (the encoder is frozen). Produces the data for Table 2.
+
+---
+
+### ✅ Milestone 3: rogue-agent attack harness (complete)
+
+Implements the three attack classes from paper §3.3 and produces the §6.1 Table 1 data. Each scenario runs through a **principal-based baseline** (trusts any known agent with clean history; no purpose-scoped view) and **our per-message model**.
+
+- **Decision (locked with advisor):** supply-chain compromise (where the declared purpose still looks legitimate) is caught by an **attestation code-hash gate**; substitution and prompt injection are caught by the learned `trust_eval` (rogue declared purpose). Both are part of "ours".
+- Substrate hooks (backward-compatible): `process_hop`/`run_chain` take an optional `attestation_registry` (the gate) and an optional `model` override (baseline vs. ours). See `agents/a2a/substrate.py`.
+- Harness: `evaluation/attacks.py` (baseline foil, scenario generators, `evaluate`/`format_table`); CLI `evaluation/run_attacks.py` writes `evaluation/results/attack_results.{csv,json}`. Injection scenarios reuse `test-driver/prompts/prompt_injection.json`.
+- Results (synthetic/controlled): baseline ASR **1.00** and exposure **1.00** on every class; ours **0.00 / 0.00**. Tests: `tests/test_attacks.py` (Table 1 + mechanism-attribution + bounded-exposure). Full suite **68 passing**.
+- **Deferred:** rogue detection via context-integration drift (secondary signal); over-the-wire isolation demo (needs the real substrate); `trust_eval` generalizing to unseen rogue purposes. See `TODO.md`.
 
 ---
 

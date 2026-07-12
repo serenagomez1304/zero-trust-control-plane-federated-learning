@@ -7,11 +7,14 @@ work, and known issues. Update as work progresses.
 - [x] **M1 — end-to-end message flow with stubs.** Message format
   (`content, mu, kappa, sigma`), 4-stage substrate pipeline, in-process demo,
   tests. See CLAUDE.md.
-- [ ] **M2 — real semantic model (in progress).** Learned `trust_eval`
-  (frozen encoder + trainable head); deterministic `transform`/`integrate`/
-  `synthesize`; synthetic data; per-hop latency.
-- [ ] M3 — rogue-agent attack harness.
-- [ ] M4 — federated learning setup (Flower; FedAvg/FedProx/SCAFFOLD/FedNova).
+- [x] **M2 — real semantic model.** Learned `trust_eval` (frozen encoder +
+  trainable head); deterministic `transform`/`integrate`/`synthesize`;
+  synthetic data; per-hop latency.
+- [x] **M3 — rogue-agent attack harness.** Three attack classes vs. a
+  principal baseline; Table 1 (`evaluation/`). substitution/injection caught by
+  `trust_eval`, supply-chain by the attestation gate.
+- [ ] **M4 — federated learning setup (next).** Flower; FedAvg/FedProx/SCAFFOLD/
+  FedNova; K deployments with controlled non-IID; federate only the head.
 - [ ] M5 — heterogeneity characterization.
 - [ ] M6 — overhead and ablation.
 
@@ -43,8 +46,9 @@ work, and known issues. Update as work progresses.
 - Context summarization for long chains: `integrate` does minimal trimming;
   needs a real strategy before long-chain experiments.
 - Attestation contents: `Attestation` is a minimal stub
-  (`agent_id, code_hash?, signed_by?, recent_failure_rate?`); `trust_eval`
-  does not yet consume it.
+  (`agent_id, code_hash?, signed_by?, recent_failure_rate?`). M3 uses
+  `code_hash` in the attestation gate (supply-chain), but `trust_eval` still
+  does not consume the attestation.
 
 ## Known cleanups (low priority)
 - `agents/a2a/models.py` still defines an unused `TRUST_SCORE_TOO_LOW` error
