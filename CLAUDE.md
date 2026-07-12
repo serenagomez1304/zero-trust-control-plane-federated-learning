@@ -46,7 +46,18 @@ Today's principal-based trust catches none of these because the agent's identity
 
 ## Current milestone
 
-**Milestone 4 (next): federated learning setup.** M1–M3 are complete (see below). M4 installs an FL framework (Flower per the brief), simulates K deployments by partitioning the synthetic trust data with controlled non-IID heterogeneity, implements FedAvg/FedProx/SCAFFOLD/FedNova, and trains the `trust_eval` head federally — only the head is federated (the encoder is frozen). Produces the data for Table 2.
+**Milestone 5 (next): heterogeneity characterization.** M1–M4 are complete (see below). M5 measures the non-IID distances between deployment marginals (agent-population, task-distribution, threat-profile) — e.g. Wasserstein/KL between the client partitions from M4 — and correlates heterogeneity with FL performance. Produces the data for §5.3.
+
+---
+
+### ✅ Milestone 4: federated learning of the trust_eval head (complete)
+
+Trains the head across K simulated deployments holding non-IID slices of the synthetic trust data; compares aggregation strategies to a centralized reference (Table 2). **Decision (locked with advisor):** a **hand-rolled FL simulation** (not Flower) — full control over all four strategies, deterministic, no heavy dependency. Only the head is federated (encoder frozen).
+
+- Code: `agents/a2a/federated/` (`partition.py` = Dirichlet(α) non-IID split; `strategies.py` = FedAvg/FedProx/SCAFFOLD/FedNova on the head's weight vector; `simulate.py` = FL loop + centralized baseline). Design note: `docs/m4_design.md`.
+- CLI: `evaluation/run_federated.py` → `evaluation/results/federated_results.{csv,json}`.
+- Results (synthetic, hashing encoder, K=5): centralized ≈1.00; FL matches on IID/mild non-IID; under strong skew (α=0.1) strategies diverge — FedNova ≈1.00, FedAvg ≈0.99, FedProx/SCAFFOLD ≈0.86–0.87. Tests: `tests/test_federated.py`. Full suite **78 passing**.
+- **Deferred:** larger K sweeps + multi-seed variance; real-encoder FL run; formal heterogeneity metrics (that's M5); optional DP-SGD.
 
 ---
 

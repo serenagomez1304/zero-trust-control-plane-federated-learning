@@ -13,9 +13,11 @@ work, and known issues. Update as work progresses.
 - [x] **M3 — rogue-agent attack harness.** Three attack classes vs. a
   principal baseline; Table 1 (`evaluation/`). substitution/injection caught by
   `trust_eval`, supply-chain by the attestation gate.
-- [ ] **M4 — federated learning setup (next).** Flower; FedAvg/FedProx/SCAFFOLD/
-  FedNova; K deployments with controlled non-IID; federate only the head.
-- [ ] M5 — heterogeneity characterization.
+- [x] **M4 — federated learning.** Hand-rolled FL sim (not Flower);
+  FedAvg/FedProx/SCAFFOLD/FedNova over the head; Dirichlet(α) non-IID; Table 2
+  (`agents/a2a/federated/`, `evaluation/run_federated.py`).
+- [ ] **M5 — heterogeneity characterization (next).** Wasserstein/KL between
+  deployment marginals; correlate heterogeneity with FL performance (§5.3).
 - [ ] M6 — overhead and ablation.
 
 ## M2 design decisions (locked with advisor)
