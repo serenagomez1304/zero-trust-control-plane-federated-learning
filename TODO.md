@@ -19,8 +19,12 @@ work, and known issues. Update as work progresses.
 - [x] **M5 — heterogeneity characterization.** JS/KL between deployment
   marginals (agent-population, task, threat); α sweep correlated with FL
   accuracy (`heterogeneity.py`, `evaluation/run_heterogeneity.py`). §5.3.
-- [ ] **M6 — overhead and ablation (next, final).** Per-hop latency by stage,
-  throughput, vs. principal baseline. Extends `benchmarks/trust_eval_latency.py`.
+- [x] **M6 — overhead & ablation.** Per-hop latency by stage, throughput, vs.
+  principal baseline (`evaluation/overhead.py`, `evaluation/run_overhead.py`). §6.3.
+
+**All six implementation milestones complete.** Remaining: paper-side (plug
+`evaluation/results/*` into the `.tex` tables + prose) and the deferred infra
+below if real over-the-wire numbers are wanted.
 
 ## M2 design decisions (locked with advisor)
 - **Substrate:** frozen pretrained sentence-transformer encoder + small

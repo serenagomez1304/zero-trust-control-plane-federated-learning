@@ -44,9 +44,19 @@ Today's principal-based trust catches none of these because the agent's identity
 
 ---
 
-## Current milestone
+## Current status
 
-**Milestone 6 (next, final): overhead and ablation.** M1–M5 are complete (see below). M6 measures per-hop latency broken down by pipeline stage (verify → trust_eval → transform → integrate), throughput, and a comparison against the principal-based baseline. Note a per-hop latency benchmark already exists (`benchmarks/trust_eval_latency.py`, ~16 ms/hop real encoder); M6 extends it to a stage breakdown + baseline comparison (§6.3).
+**All six implementation milestones (M1–M6) are complete.** The remaining work is paper-side: plugging the generated results (`evaluation/results/*.{csv,json}`) into the `.tex` tables (Table 1 = `attack_results`, Table 2 = `federated_results`, §5.3 = `heterogeneity_results`, §6.3 = `overhead_results`), writing the prose sections, and — if the real over-the-wire numbers are wanted — the deferred infra work in `TODO.md`. Full suite **94 passing**. Per the working agreement, don't write paper text until we choose to; the skeleton stays fixed until then.
+
+---
+
+### ✅ Milestone 6: overhead & ablation (complete)
+
+Per-hop latency broken down by pipeline stage, throughput, and a comparison against the principal-based baseline (§6.3).
+
+- Code: `evaluation/overhead.py` (per-stage timing) + CLI `evaluation/run_overhead.py` → `evaluation/results/overhead_results.{csv,json}`. Builds on the M2 benchmark `benchmarks/trust_eval_latency.py`. Design note: `docs/m6_design.md`.
+- Results (synthetic, hashing encoder): stub/baseline ≈0.014 ms/hop; ours ≈0.074 ms/hop — `trust_eval` dominates (≈0.059 ms), crypto (verify/sign) ≈0.006 ms each, transform/integrate negligible. With the real encoder, `trust_eval` ≈16 ms/hop (encoder forward is the cost driver — hence frozen encoder + federated head). Tests: `tests/test_overhead.py`.
+- **Deferred:** real over-the-wire throughput (needs the sidecar substrate); real-encoder committed numbers.
 
 ---
 
