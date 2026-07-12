@@ -22,7 +22,11 @@ from agents.a2a.federated.partition import (
     partition_iid,
     partition_report,
 )
-from agents.a2a.federated.simulate import centralized_accuracy, federated_train
+from agents.a2a.federated.simulate import (
+    centralized_accuracy,
+    federated_train,
+    federated_train_multiseed,
+)
 from agents.a2a.federated.strategies import ALL_STRATEGIES
 
 
@@ -90,6 +94,20 @@ class TestStrategies:
         train, test = data
         r = federated_train(train, test, "fedavg", n_clients=5, rounds=15, iid=True, seed=0)
         assert r.history[-1].accuracy >= r.history[0].accuracy
+
+
+class TestMultiSeed:
+    def test_aggregate_over_seeds(self, data):
+        train, test = data
+        agg = federated_train_multiseed(
+            train, test, "fedavg", seeds=(0, 1, 2), n_clients=5, rounds=8, iid=True,
+        )
+        assert agg.seeds == [0, 1, 2]
+        assert len(agg.per_seed_accuracy) == 3
+        assert 0.0 <= agg.mean_accuracy <= 1.0
+        assert agg.std_accuracy >= 0.0
+        # mean matches the per-seed accuracies
+        assert agg.mean_accuracy == pytest.approx(sum(agg.per_seed_accuracy) / 3, rel=1e-6)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,473 @@
+{
+  "centralized_ref": 1.0,
+  "results": [
+    {
+      "n_clients": 5,
+      "strategy": "fedavg",
+      "level": "IID",
+      "mean_accuracy": 0.9908,
+      "std_accuracy": 0.0047,
+      "seeds": 3,
+      "per_seed": [
+        0.9975,
+        0.9875,
+        0.9875
+      ]
+    },
+    {
+      "n_clients": 5,
+      "strategy": "fedavg",
+      "level": "alpha=1.0",
+      "mean_accuracy": 0.9408,
+      "std_accuracy": 0.0819,
+      "seeds": 3,
+      "per_seed": [
+        1.0,
+        0.825,
+        0.9975
+      ]
+    },
+    {
+      "n_clients": 5,
+      "strategy": "fedavg",
+      "level": "alpha=0.1",
+      "mean_accuracy": 0.8692,
+      "std_accuracy": 0.1511,
+      "seeds": 3,
+      "per_seed": [
+        0.95,
+        1.0,
+        0.6575
+      ]
+    },
+    {
+      "n_clients": 5,
+      "strategy": "fedprox",
+      "level": "IID",
+      "mean_accuracy": 0.9308,
+      "std_accuracy": 0.0072,
+      "seeds": 3,
+      "per_seed": [
+        0.94,
+        0.93,
+        0.9225
+      ]
+    },
+    {
+      "n_clients": 5,
+      "strategy": "fedprox",
+      "level": "alpha=1.0",
+      "mean_accuracy": 0.8667,
+      "std_accuracy": 0.0602,
+      "seeds": 3,
+      "per_seed": [
+        0.8675,
+        0.7925,
+        0.94
+      ]
+    },
+    {
+      "n_clients": 5,
+      "strategy": "fedprox",
+      "level": "alpha=0.1",
+      "mean_accuracy": 0.7467,
+      "std_accuracy": 0.1008,
+      "seeds": 3,
+      "per_seed": [
+        0.85,
+        0.61,
+        0.78
+      ]
+    },
+    {
+      "n_clients": 5,
+      "strategy": "scaffold",
+      "level": "IID",
+      "mean_accuracy": 0.9908,
+      "std_accuracy": 0.0031,
+      "seeds": 3,
+      "per_seed": [
+        0.995,
+        0.9875,
+        0.99
+      ]
+    },
+    {
+      "n_clients": 5,
+      "strategy": "scaffold",
+      "level": "alpha=1.0",
+      "mean_accuracy": 0.9283,
+      "std_accuracy": 0.0697,
+      "seeds": 3,
+      "per_seed": [
+        0.9725,
+        0.83,
+        0.9825
+      ]
+    },
+    {
+      "n_clients": 5,
+      "strategy": "scaffold",
+      "level": "alpha=0.1",
+      "mean_accuracy": 0.7558,
+      "std_accuracy": 0.0419,
+      "seeds": 3,
+      "per_seed": [
+        0.8125,
+        0.7425,
+        0.7125
+      ]
+    },
+    {
+      "n_clients": 5,
+      "strategy": "fednova",
+      "level": "IID",
+      "mean_accuracy": 0.9908,
+      "std_accuracy": 0.0047,
+      "seeds": 3,
+      "per_seed": [
+        0.9975,
+        0.9875,
+        0.9875
+      ]
+    },
+    {
+      "n_clients": 5,
+      "strategy": "fednova",
+      "level": "alpha=1.0",
+      "mean_accuracy": 0.9425,
+      "std_accuracy": 0.0796,
+      "seeds": 3,
+      "per_seed": [
+        1.0,
+        0.83,
+        0.9975
+      ]
+    },
+    {
+      "n_clients": 5,
+      "strategy": "fednova",
+      "level": "alpha=0.1",
+      "mean_accuracy": 0.8542,
+      "std_accuracy": 0.1593,
+      "seeds": 3,
+      "per_seed": [
+        0.93,
+        1.0,
+        0.6325
+      ]
+    },
+    {
+      "n_clients": 10,
+      "strategy": "fedavg",
+      "level": "IID",
+      "mean_accuracy": 0.8608,
+      "std_accuracy": 0.0066,
+      "seeds": 3,
+      "per_seed": [
+        0.8575,
+        0.87,
+        0.855
+      ]
+    },
+    {
+      "n_clients": 10,
+      "strategy": "fedavg",
+      "level": "alpha=1.0",
+      "mean_accuracy": 0.83,
+      "std_accuracy": 0.0035,
+      "seeds": 3,
+      "per_seed": [
+        0.825,
+        0.8325,
+        0.8325
+      ]
+    },
+    {
+      "n_clients": 10,
+      "strategy": "fedavg",
+      "level": "alpha=0.1",
+      "mean_accuracy": 0.7992,
+      "std_accuracy": 0.0585,
+      "seeds": 3,
+      "per_seed": [
+        0.875,
+        0.79,
+        0.7325
+      ]
+    },
+    {
+      "n_clients": 10,
+      "strategy": "fedprox",
+      "level": "IID",
+      "mean_accuracy": 0.8425,
+      "std_accuracy": 0.002,
+      "seeds": 3,
+      "per_seed": [
+        0.845,
+        0.8425,
+        0.84
+      ]
+    },
+    {
+      "n_clients": 10,
+      "strategy": "fedprox",
+      "level": "alpha=1.0",
+      "mean_accuracy": 0.8108,
+      "std_accuracy": 0.0136,
+      "seeds": 3,
+      "per_seed": [
+        0.825,
+        0.815,
+        0.7925
+      ]
+    },
+    {
+      "n_clients": 10,
+      "strategy": "fedprox",
+      "level": "alpha=0.1",
+      "mean_accuracy": 0.6967,
+      "std_accuracy": 0.0452,
+      "seeds": 3,
+      "per_seed": [
+        0.6575,
+        0.76,
+        0.6725
+      ]
+    },
+    {
+      "n_clients": 10,
+      "strategy": "scaffold",
+      "level": "IID",
+      "mean_accuracy": 0.8633,
+      "std_accuracy": 0.0024,
+      "seeds": 3,
+      "per_seed": [
+        0.865,
+        0.865,
+        0.86
+      ]
+    },
+    {
+      "n_clients": 10,
+      "strategy": "scaffold",
+      "level": "alpha=1.0",
+      "mean_accuracy": 0.7942,
+      "std_accuracy": 0.0306,
+      "seeds": 3,
+      "per_seed": [
+        0.825,
+        0.805,
+        0.7525
+      ]
+    },
+    {
+      "n_clients": 10,
+      "strategy": "scaffold",
+      "level": "alpha=0.1",
+      "mean_accuracy": 0.66,
+      "std_accuracy": 0.078,
+      "seeds": 3,
+      "per_seed": [
+        0.585,
+        0.7675,
+        0.6275
+      ]
+    },
+    {
+      "n_clients": 10,
+      "strategy": "fednova",
+      "level": "IID",
+      "mean_accuracy": 0.8608,
+      "std_accuracy": 0.0066,
+      "seeds": 3,
+      "per_seed": [
+        0.8575,
+        0.87,
+        0.855
+      ]
+    },
+    {
+      "n_clients": 10,
+      "strategy": "fednova",
+      "level": "alpha=1.0",
+      "mean_accuracy": 0.8142,
+      "std_accuracy": 0.0024,
+      "seeds": 3,
+      "per_seed": [
+        0.8125,
+        0.8175,
+        0.8125
+      ]
+    },
+    {
+      "n_clients": 10,
+      "strategy": "fednova",
+      "level": "alpha=0.1",
+      "mean_accuracy": 0.6425,
+      "std_accuracy": 0.082,
+      "seeds": 3,
+      "per_seed": [
+        0.5975,
+        0.7575,
+        0.5725
+      ]
+    },
+    {
+      "n_clients": 20,
+      "strategy": "fedavg",
+      "level": "IID",
+      "mean_accuracy": 0.8125,
+      "std_accuracy": 0.0154,
+      "seeds": 3,
+      "per_seed": [
+        0.83,
+        0.815,
+        0.7925
+      ]
+    },
+    {
+      "n_clients": 20,
+      "strategy": "fedavg",
+      "level": "alpha=1.0",
+      "mean_accuracy": 0.7917,
+      "std_accuracy": 0.0247,
+      "seeds": 3,
+      "per_seed": [
+        0.815,
+        0.7575,
+        0.8025
+      ]
+    },
+    {
+      "n_clients": 20,
+      "strategy": "fedavg",
+      "level": "alpha=0.1",
+      "mean_accuracy": 0.7517,
+      "std_accuracy": 0.0502,
+      "seeds": 3,
+      "per_seed": [
+        0.81,
+        0.7575,
+        0.6875
+      ]
+    },
+    {
+      "n_clients": 20,
+      "strategy": "fedprox",
+      "level": "IID",
+      "mean_accuracy": 0.7875,
+      "std_accuracy": 0.0201,
+      "seeds": 3,
+      "per_seed": [
+        0.815,
+        0.78,
+        0.7675
+      ]
+    },
+    {
+      "n_clients": 20,
+      "strategy": "fedprox",
+      "level": "alpha=1.0",
+      "mean_accuracy": 0.7783,
+      "std_accuracy": 0.0174,
+      "seeds": 3,
+      "per_seed": [
+        0.8,
+        0.7575,
+        0.7775
+      ]
+    },
+    {
+      "n_clients": 20,
+      "strategy": "fedprox",
+      "level": "alpha=0.1",
+      "mean_accuracy": 0.7475,
+      "std_accuracy": 0.0408,
+      "seeds": 3,
+      "per_seed": [
+        0.76,
+        0.79,
+        0.6925
+      ]
+    },
+    {
+      "n_clients": 20,
+      "strategy": "scaffold",
+      "level": "IID",
+      "mean_accuracy": 0.7992,
+      "std_accuracy": 0.0185,
+      "seeds": 3,
+      "per_seed": [
+        0.825,
+        0.79,
+        0.7825
+      ]
+    },
+    {
+      "n_clients": 20,
+      "strategy": "scaffold",
+      "level": "alpha=1.0",
+      "mean_accuracy": 0.7367,
+      "std_accuracy": 0.0472,
+      "seeds": 3,
+      "per_seed": [
+        0.7725,
+        0.7675,
+        0.67
+      ]
+    },
+    {
+      "n_clients": 20,
+      "strategy": "scaffold",
+      "level": "alpha=0.1",
+      "mean_accuracy": 0.6517,
+      "std_accuracy": 0.0344,
+      "seeds": 3,
+      "per_seed": [
+        0.7,
+        0.6325,
+        0.6225
+      ]
+    },
+    {
+      "n_clients": 20,
+      "strategy": "fednova",
+      "level": "IID",
+      "mean_accuracy": 0.8125,
+      "std_accuracy": 0.0154,
+      "seeds": 3,
+      "per_seed": [
+        0.83,
+        0.815,
+        0.7925
+      ]
+    },
+    {
+      "n_clients": 20,
+      "strategy": "fednova",
+      "level": "alpha=1.0",
+      "mean_accuracy": 0.7575,
+      "std_accuracy": 0.0281,
+      "seeds": 3,
+      "per_seed": [
+        0.7875,
+        0.765,
+        0.72
+      ]
+    },
+    {
+      "n_clients": 20,
+      "strategy": "fednova",
+      "level": "alpha=0.1",
+      "mean_accuracy": 0.5733,
+      "std_accuracy": 0.0644,
+      "seeds": 3,
+      "per_seed": [
+        0.5675,
+        0.4975,
+        0.655
+      ]
+    }
+  ]
+}

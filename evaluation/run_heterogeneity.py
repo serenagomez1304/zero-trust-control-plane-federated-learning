@@ -35,48 +35,60 @@ def main() -> int:
     ap.add_argument("--clients", type=int, default=5)
     ap.add_argument("--rounds", type=int, default=15)
     ap.add_argument("--n", type=int, default=2000)
-    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--seeds", type=int, default=3, help="number of seeds (0..seeds-1) to average")
     args = ap.parse_args()
 
-    train, test = train_test_split(generate_dataset(n=args.n, seed=args.seed), seed=args.seed)
+    import numpy as np
+    seeds = list(range(args.seeds))
+    train, test = train_test_split(generate_dataset(n=args.n, seed=0), seed=0)
 
     rows = []
-    print(f"[data] train={len(train)} test={len(test)} clients={args.clients} rounds={args.rounds}\n")
+    print(f"[data] train={len(train)} test={len(test)} clients={args.clients} "
+          f"rounds={args.rounds} seeds={seeds}\n")
     header = (f"{'alpha':>7} {'het.overall':>12} {'agent_pop':>10} {'task':>7} {'threat':>7}   "
-              + " ".join(f"{s:>9}" for s in ALL_STRATEGIES))
+              + " ".join(f"{s:>13}" for s in ALL_STRATEGIES))
     print(header)
     print("-" * len(header))
 
     for alpha in ALPHAS:
-        shards = (partition_iid(train, args.clients, args.seed) if alpha is None
-                  else partition_dirichlet(train, args.clients, alpha=alpha, seed=args.seed))
-        het = partition_heterogeneity(shards)
+        # Heterogeneity and accuracy averaged over seeds (partition + FL seed).
+        het_runs = {k: [] for k in ("overall", "agent_population", "task_distribution", "threat_profile")}
+        acc_runs = {s: [] for s in ALL_STRATEGIES}
+        for seed in seeds:
+            shards = (partition_iid(train, args.clients, seed) if alpha is None
+                      else partition_dirichlet(train, args.clients, alpha=alpha, seed=seed))
+            het = partition_heterogeneity(shards)
+            for k in het_runs:
+                het_runs[k].append(het[k])
+            for strategy in ALL_STRATEGIES:
+                r = federated_train(
+                    train, test, strategy,
+                    encoder_spec=args.encoder, n_clients=args.clients, rounds=args.rounds,
+                    alpha=(alpha if alpha is not None else 1.0), iid=(alpha is None), seed=seed,
+                )
+                acc_runs[strategy].append(r.final_accuracy)
 
-        accs = {}
-        for strategy in ALL_STRATEGIES:
-            r = federated_train(
-                train, test, strategy,
-                encoder_spec=args.encoder, n_clients=args.clients, rounds=args.rounds,
-                alpha=(alpha if alpha is not None else 1.0), iid=(alpha is None), seed=args.seed,
-            )
-            accs[strategy] = r.final_accuracy
+        het_mean = {k: float(np.mean(v)) for k, v in het_runs.items()}
+        acc_mean = {s: float(np.mean(v)) for s in ALL_STRATEGIES for v in [acc_runs[s]]}
+        acc_std = {s: float(np.std(acc_runs[s])) for s in ALL_STRATEGIES}
 
         rows.append({
             "alpha": ("IID" if alpha is None else alpha),
-            "het_overall": round(het["overall"], 4),
-            "het_agent_population": round(het["agent_population"], 4),
-            "het_task_distribution": round(het["task_distribution"], 4),
-            "het_threat_profile": round(het["threat_profile"], 4),
-            **{f"acc_{s}": round(accs[s], 4) for s in ALL_STRATEGIES},
+            "het_overall": round(het_mean["overall"], 4),
+            "het_agent_population": round(het_mean["agent_population"], 4),
+            "het_task_distribution": round(het_mean["task_distribution"], 4),
+            "het_threat_profile": round(het_mean["threat_profile"], 4),
+            **{f"acc_{s}": round(acc_mean[s], 4) for s in ALL_STRATEGIES},
+            **{f"acc_{s}_std": round(acc_std[s], 4) for s in ALL_STRATEGIES},
         })
         alpha_label = "IID" if alpha is None else f"{alpha:g}"
-        print(f"{alpha_label:>7} {het['overall']:>12.3f} {het['agent_population']:>10.3f} "
-              f"{het['task_distribution']:>7.3f} {het['threat_profile']:>7.3f}   "
-              + " ".join(f"{accs[s]:>9.3f}" for s in ALL_STRATEGIES))
+        print(f"{alpha_label:>7} {het_mean['overall']:>12.3f} {het_mean['agent_population']:>10.3f} "
+              f"{het_mean['task_distribution']:>7.3f} {het_mean['threat_profile']:>7.3f}   "
+              + " ".join(f"{acc_mean[s]:>6.3f}±{acc_std[s]:<6.3f}" for s in ALL_STRATEGIES))
 
-    # Correlation between overall heterogeneity and accuracy, per strategy.
+    # Correlation between overall heterogeneity and (seed-mean) accuracy, per strategy.
     het_vals = [r["het_overall"] for r in rows]
-    print("\nPearson correlation (overall heterogeneity vs. accuracy):")
+    print("\nPearson correlation (overall heterogeneity vs. mean accuracy):")
     corr = {}
     for s in ALL_STRATEGIES:
         c = pearson(het_vals, [r[f"acc_{s}"] for r in rows])

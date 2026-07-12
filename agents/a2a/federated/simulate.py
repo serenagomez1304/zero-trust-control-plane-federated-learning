@@ -150,3 +150,48 @@ def centralized_accuracy(
     model = TrustEvalModel(get_encoder(encoder_spec), hidden=hidden)
     model.fit(train, epochs=epochs, seed=seed)
     return float(model.evaluate(test)["accuracy"])
+
+
+@dataclass
+class AggregateResult:
+    """Multi-seed summary of a federated run (mean +/- std final accuracy)."""
+    strategy: str
+    n_clients: int
+    alpha: float
+    seeds: List[int]
+    per_seed_accuracy: List[float]
+    mean_accuracy: float
+    std_accuracy: float
+    mean_rounds_to_converge: Optional[float]
+
+
+def federated_train_multiseed(
+    train: List[TrustExample],
+    test: List[TrustExample],
+    strategy_name: str = "fedavg",
+    *,
+    seeds: Sequence[int] = (0, 1, 2),
+    **kwargs,
+) -> AggregateResult:
+    """Run ``federated_train`` across seeds (fixed data, varied partition/init/SGD).
+
+    Varying the seed varies the Dirichlet partition, the head init, and the SGD
+    ordering, so the spread reflects FL variance on a fixed dataset.
+    """
+    accs: List[float] = []
+    convs: List[int] = []
+    alpha_used = float("nan")
+    n_clients = kwargs.get("n_clients", 5)
+    for s in seeds:
+        r = federated_train(train, test, strategy_name, seed=s, **kwargs)
+        accs.append(r.final_accuracy)
+        alpha_used = r.alpha
+        if r.rounds_to_converge is not None:
+            convs.append(r.rounds_to_converge)
+    mean_conv = float(np.mean(convs)) if convs else None
+    return AggregateResult(
+        strategy=strategy_name, n_clients=n_clients, alpha=alpha_used,
+        seeds=list(seeds), per_seed_accuracy=accs,
+        mean_accuracy=float(np.mean(accs)), std_accuracy=float(np.std(accs)),
+        mean_rounds_to_converge=mean_conv,
+    )
