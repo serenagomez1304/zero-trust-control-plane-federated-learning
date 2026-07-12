@@ -46,7 +46,17 @@ Today's principal-based trust catches none of these because the agent's identity
 
 ## Current milestone
 
-**Milestone 5 (next): heterogeneity characterization.** M1–M4 are complete (see below). M5 measures the non-IID distances between deployment marginals (agent-population, task-distribution, threat-profile) — e.g. Wasserstein/KL between the client partitions from M4 — and correlates heterogeneity with FL performance. Produces the data for §5.3.
+**Milestone 6 (next, final): overhead and ablation.** M1–M5 are complete (see below). M6 measures per-hop latency broken down by pipeline stage (verify → trust_eval → transform → integrate), throughput, and a comparison against the principal-based baseline. Note a per-hop latency benchmark already exists (`benchmarks/trust_eval_latency.py`, ~16 ms/hop real encoder); M6 extends it to a stage breakdown + baseline comparison (§6.3).
+
+---
+
+### ✅ Milestone 5: non-IID heterogeneity characterization (complete)
+
+Measures how different the deployments' data distributions are and correlates that with FL performance (§5.3). For each of the three sources (agent-population, task-distribution, threat-profile) it forms per-client categorical marginals and measures Jensen-Shannon divergence from the pooled marginal.
+
+- Code: `agents/a2a/federated/heterogeneity.py` (JS/KL divergence, per-source + overall scores, Pearson). CLI: `evaluation/run_heterogeneity.py` sweeps α and correlates heterogeneity with accuracy → `evaluation/results/heterogeneity_results.{csv,json}`. Design note: `docs/m5_design.md`.
+- Results (synthetic, K=5): heterogeneity rises as α falls (overall ≈0.004 IID → ≈0.167 at α=0.05); FL accuracy falls with it; strong negative correlation for all strategies (r ≈ −0.84 to −0.95). Tests: `tests/test_heterogeneity.py`. Full suite **92 passing**.
+- **Honest limitation:** the M4 `(label, kind)` partition induces agent-population + threat skew but ~zero task heterogeneity (reported faithfully). **Deferred:** task-heterogeneity partitioning; Wasserstein on an embedded space; multi-seed variance.
 
 ---
 

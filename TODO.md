@@ -16,9 +16,11 @@ work, and known issues. Update as work progresses.
 - [x] **M4 — federated learning.** Hand-rolled FL sim (not Flower);
   FedAvg/FedProx/SCAFFOLD/FedNova over the head; Dirichlet(α) non-IID; Table 2
   (`agents/a2a/federated/`, `evaluation/run_federated.py`).
-- [ ] **M5 — heterogeneity characterization (next).** Wasserstein/KL between
-  deployment marginals; correlate heterogeneity with FL performance (§5.3).
-- [ ] M6 — overhead and ablation.
+- [x] **M5 — heterogeneity characterization.** JS/KL between deployment
+  marginals (agent-population, task, threat); α sweep correlated with FL
+  accuracy (`heterogeneity.py`, `evaluation/run_heterogeneity.py`). §5.3.
+- [ ] **M6 — overhead and ablation (next, final).** Per-hop latency by stage,
+  throughput, vs. principal baseline. Extends `benchmarks/trust_eval_latency.py`.
 
 ## M2 design decisions (locked with advisor)
 - **Substrate:** frozen pretrained sentence-transformer encoder + small
@@ -38,6 +40,10 @@ work, and known issues. Update as work progresses.
   DistilBERT-class model end-to-end is a possible later upgrade.
 - **Generative `transform`/`synthesize`.** Deterministic for now; could become
   learned/LLM-backed if the paper needs it.
+- **Task-heterogeneity partitioning (M5).** The `(label, kind)` partition
+  induces agent-population + threat-profile skew but ~zero task_distribution
+  skew; add task domain to the partition key to exercise the third source.
+- **Multi-seed variance / larger K** for the FL and heterogeneity sweeps.
 
 ## Open questions (from brief §7; revisit as they bite)
 - "Purpose" representation: currently a small structured object
