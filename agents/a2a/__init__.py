@@ -61,12 +61,14 @@ from agents.a2a.substrate import (
     ChainAgent,
     HopResult,
     ChainResult,
+    AttestationRegistry,
     TRUST_THRESHOLD,
     originate,
     process_hop,
     synthesize,
     run_chain,
     verify_signature,
+    verify_attestation,
 )
 
 __all__ = [
@@ -112,10 +114,12 @@ __all__ = [
     "ChainAgent",
     "HopResult",
     "ChainResult",
+    "AttestationRegistry",
     "TRUST_THRESHOLD",
     "originate",
     "process_hop",
     "synthesize",
     "run_chain",
     "verify_signature",
+    "verify_attestation",
 ]

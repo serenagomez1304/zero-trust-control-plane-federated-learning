@@ -49,7 +49,7 @@ import hashlib
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import Callable, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from agents.a2a.trust import (
     Attestation,
@@ -57,6 +57,7 @@ from agents.a2a.trust import (
     DeclaredPurpose,
     Kappa,
     Mu,
+    SemanticModel,
     Sigma,
     TrustMessage,
     resolve_mu,
@@ -125,6 +126,27 @@ def verify_signature(message: TrustMessage) -> bool:
 
 
 # =============================================================================
+# Attestation gate (alpha_a)
+# =============================================================================
+#
+# A registry maps agent_id -> expected code/model hash, as signed by a trusted
+# attester (see the paper's "What We Trust").  Verifying an agent's attestation
+# against this registry is what catches supply-chain compromise: a tampered
+# agent keeps its identity and can declare a legitimate purpose, but its code
+# hash no longer matches the registered value.  We reject only on a definitive
+# mismatch; an unregistered agent (no expected value) is left to the trust_eval
+# stage, since attestation carries no information about it.
+
+AttestationRegistry = Dict[str, str]
+
+
+def verify_attestation(agent: "ChainAgent", registry: AttestationRegistry) -> bool:
+    """Return False only when the agent's attested code hash contradicts the registry."""
+    expected = registry.get(agent.agent_id)
+    return expected is None or agent.attestation.code_hash == expected
+
+
+# =============================================================================
 # Origination
 # =============================================================================
 
@@ -167,19 +189,31 @@ def process_hop(
     message: TrustMessage,
     agent: ChainAgent,
     threshold: float = TRUST_THRESHOLD,
+    *,
+    model: Optional[SemanticModel] = None,
+    attestation_registry: Optional[AttestationRegistry] = None,
 ) -> HopResult:
     """Run the four-stage pipeline for one hop (Algorithm 1).
 
     Returns a rejected ``HopResult`` (with no updated message) on signature
-    failure or insufficient trust; otherwise an accepted ``HopResult`` carrying
-    the resigned message with updated accumulated context.
+    failure, attestation mismatch, or insufficient trust; otherwise an accepted
+    ``HopResult`` carrying the resigned message with updated accumulated context.
+
+    ``model`` overrides the semantic model resolved from ``message.mu`` — used by
+    the attack harness to run the same chain through a baseline vs. our model.
+    ``attestation_registry``, when given, enables the attestation gate.
     """
     # 1. Verify signature over <content, mu, kappa>.
     if not verify_signature(message):
         logger.warning("hop|%s|reject|signature verification failed", agent.agent_id)
         return HopResult(agent.agent_id, False, 0.0, threshold, reason="signature verification failed")
 
-    mu = resolve_mu(message.mu)
+    # 1b. Verify attestation (catches supply-chain compromise).
+    if attestation_registry is not None and not verify_attestation(agent, attestation_registry):
+        logger.info("hop|%s|reject|attestation mismatch", agent.agent_id)
+        return HopResult(agent.agent_id, False, 0.0, threshold, reason="attestation mismatch")
+
+    mu = model if model is not None else resolve_mu(message.mu)
 
     # 2. Trust evaluation.
     trust = mu.trust_eval(agent.declared_purpose, agent.attestation, message.kappa)
@@ -208,9 +242,10 @@ def process_hop(
     )
 
 
-def synthesize(message: TrustMessage) -> str:
+def synthesize(message: TrustMessage, model: Optional[SemanticModel] = None) -> str:
     """Synthesize the final user-facing response from accumulated context (Sec. 4.3)."""
-    return resolve_mu(message.mu).synthesize(message.kappa)
+    mu = model if model is not None else resolve_mu(message.mu)
+    return mu.synthesize(message.kappa)
 
 
 # =============================================================================
@@ -231,19 +266,26 @@ def run_chain(
     message: TrustMessage,
     agents: List[ChainAgent],
     threshold: float = TRUST_THRESHOLD,
+    *,
+    model: Optional[SemanticModel] = None,
+    attestation_registry: Optional[AttestationRegistry] = None,
 ) -> ChainResult:
     """Drive a message through a chain of agents, hop by hop, then synthesize.
 
     Stops at the first rejected hop (returning ``completed=False``); otherwise
     runs every hop and synthesizes the final response from accumulated context.
+    ``model`` / ``attestation_registry`` are forwarded to each ``process_hop``.
     """
     current = message
     hops: List[HopResult] = []
     for agent in agents:
-        result = process_hop(current, agent, threshold)
+        result = process_hop(
+            current, agent, threshold,
+            model=model, attestation_registry=attestation_registry,
+        )
         hops.append(result)
         if not result.accepted:
             return ChainResult(False, current, None, hops, rejected_at=agent.agent_id)
         current = result.message  # type: ignore[assignment]  # accepted => message set
 
-    return ChainResult(True, current, synthesize(current), hops)
+    return ChainResult(True, current, synthesize(current, model=model), hops)
