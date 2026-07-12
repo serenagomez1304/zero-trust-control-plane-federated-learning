@@ -1,0 +1,106 @@
+[
+  {
+    "strategy": "fedavg",
+    "level": "IID",
+    "final_accuracy": 1.0,
+    "rounds_to_converge": 9,
+    "n_clients": 5,
+    "alpha": Infinity
+  },
+  {
+    "strategy": "fedavg",
+    "level": "alpha=1.0",
+    "final_accuracy": 1.0,
+    "rounds_to_converge": 7,
+    "n_clients": 5,
+    "alpha": 1.0
+  },
+  {
+    "strategy": "fedavg",
+    "level": "alpha=0.1",
+    "final_accuracy": 0.99,
+    "rounds_to_converge": 15,
+    "n_clients": 5,
+    "alpha": 0.1
+  },
+  {
+    "strategy": "fedprox",
+    "level": "IID",
+    "final_accuracy": 0.9925,
+    "rounds_to_converge": 15,
+    "n_clients": 5,
+    "alpha": Infinity
+  },
+  {
+    "strategy": "fedprox",
+    "level": "alpha=1.0",
+    "final_accuracy": 0.9875,
+    "rounds_to_converge": 12,
+    "n_clients": 5,
+    "alpha": 1.0
+  },
+  {
+    "strategy": "fedprox",
+    "level": "alpha=0.1",
+    "final_accuracy": 0.87,
+    "rounds_to_converge": null,
+    "n_clients": 5,
+    "alpha": 0.1
+  },
+  {
+    "strategy": "scaffold",
+    "level": "IID",
+    "final_accuracy": 1.0,
+    "rounds_to_converge": 9,
+    "n_clients": 5,
+    "alpha": Infinity
+  },
+  {
+    "strategy": "scaffold",
+    "level": "alpha=1.0",
+    "final_accuracy": 0.995,
+    "rounds_to_converge": 11,
+    "n_clients": 5,
+    "alpha": 1.0
+  },
+  {
+    "strategy": "scaffold",
+    "level": "alpha=0.1",
+    "final_accuracy": 0.8575,
+    "rounds_to_converge": 19,
+    "n_clients": 5,
+    "alpha": 0.1
+  },
+  {
+    "strategy": "fednova",
+    "level": "IID",
+    "final_accuracy": 1.0,
+    "rounds_to_converge": 9,
+    "n_clients": 5,
+    "alpha": Infinity
+  },
+  {
+    "strategy": "fednova",
+    "level": "alpha=1.0",
+    "final_accuracy": 0.9975,
+    "rounds_to_converge": 9,
+    "n_clients": 5,
+    "alpha": 1.0
+  },
+  {
+    "strategy": "fednova",
+    "level": "alpha=0.1",
+    "final_accuracy": 1.0,
+    "rounds_to_converge": 15,
+    "n_clients": 5,
+    "alpha": 0.1
+  },
+  {
+    "strategy": "centralized",
+    "level": "pooled",
+    "final_accuracy": 1.0,
+    "rounds_to_converge": null,
+    "n_clients": 1,
+    "alpha": null
+  }
+]
