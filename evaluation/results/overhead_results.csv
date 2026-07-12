@@ -1,0 +1,4 @@
+config,total_ms,throughput_hops_per_s,verify_ms,trust_eval_ms,transform_ms,integrate_ms,sign_ms
+stub,0.01421,70362.5,0.00602,5e-05,6e-05,0.00228,0.0058
+baseline,0.01408,71006.6,0.00602,0.00011,8e-05,0.00192,0.00595
+ours,0.07397,13519.2,0.00643,0.05881,0.00092,0.00191,0.0059

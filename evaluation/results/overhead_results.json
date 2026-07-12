@@ -1,0 +1,32 @@
+[
+  {
+    "config": "stub",
+    "total_ms": 0.01421,
+    "throughput_hops_per_s": 70362.5,
+    "verify_ms": 0.00602,
+    "trust_eval_ms": 5e-05,
+    "transform_ms": 6e-05,
+    "integrate_ms": 0.00228,
+    "sign_ms": 0.0058
+  },
+  {
+    "config": "baseline",
+    "total_ms": 0.01408,
+    "throughput_hops_per_s": 71006.6,
+    "verify_ms": 0.00602,
+    "trust_eval_ms": 0.00011,
+    "transform_ms": 8e-05,
+    "integrate_ms": 0.00192,
+    "sign_ms": 0.00595
+  },
+  {
+    "config": "ours",
+    "total_ms": 0.07397,
+    "throughput_hops_per_s": 13519.2,
+    "verify_ms": 0.00643,
+    "trust_eval_ms": 0.05881,
+    "transform_ms": 0.00092,
+    "integrate_ms": 0.00191,
+    "sign_ms": 0.0059
+  }
+]
