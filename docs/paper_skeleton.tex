@@ -251,16 +251,16 @@ We implement the trust model in a multi-agent zero-trust testbed comprising a su
 \todo[inline]{Table: for each attack class (substitution, prompt injection, supply-chain compromise), report (a) attack success rate against principal-based baseline, (b) attack success rate against purpose-and-context model, (c) bounded-exposure metric. Discuss findings.}
 
 \begin{table}[h]
-\caption{Placeholder: Attack success rates against principal-based baseline vs.\ purpose-and-context model.}
+\caption{Attack success rate (ASR) and sensitive-field exposure: principal-based baseline vs.\ our purpose-and-context model, on the synthetic rogue-agent harness. When the baseline accepts a hop it exposes 100\% of the message's sensitive fields; ``exposure (ours)'' is the fraction our purpose-scoped view reveals. Substitution/injection are caught by the learned trust evaluation, supply-chain compromise by the attestation gate.}
 \label{tab:attack-success}
 \centering
-\begin{tabular}{lccc}
+\begin{tabular}{lcccc}
 \toprule
-Attack class & Baseline ASR & Ours ASR & Bounded exposure \\
+Attack class & $n$ & Baseline ASR & Ours ASR & Exposure (ours) \\
 \midrule
-Rogue substitution & XX\% & XX\% & XX\% \\
-Prompt injection & XX\% & XX\% & XX\% \\
-Supply-chain compromise & XX\% & XX\% & XX\% \\
+Rogue substitution & 20 & 100\% & 0\% & 0\% \\
+Prompt injection & 26 & 100\% & 0\% & 0\% \\
+Supply-chain compromise & 20 & 100\% & 0\% & 0\% \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -270,18 +270,18 @@ Supply-chain compromise & XX\% & XX\% & XX\% \\
 \todo[inline]{Table: convergence and final accuracy of each FL aggregation strategy on the trust-decision task under varying levels of non-IID heterogeneity. Compare against centralized training as upper bound.}
 
 \begin{table}[h]
-\caption{Placeholder: FL aggregation strategy comparison on trust-decision task.}
+\caption{Federated training of the trust head vs.\ centralized upper bound (synthetic data, $K{=}5$, frozen hashing encoder, mean$\pm$std over 3 seeds, 15 communication rounds). Mild non-IID $=$ Dirichlet $\alpha{=}1.0$, severe $=\alpha{=}0.1$. FL matches centralized under IID/mild skew; under severe skew the strategies diverge.}
 \label{tab:fl-comparison}
 \centering
 \begin{tabular}{lcccc}
 \toprule
-Method & IID acc. & Mild non-IID & Severe non-IID & Comm. rounds \\
+Method & IID acc. & Mild non-IID & Severe non-IID & Rounds \\
 \midrule
-Centralized (upper bound) & XX.X & --- & --- & --- \\
-FedAvg & XX.X & XX.X & XX.X & XXX \\
-FedProx & XX.X & XX.X & XX.X & XXX \\
-SCAFFOLD & XX.X & XX.X & XX.X & XXX \\
-FedNova & XX.X & XX.X & XX.X & XXX \\
+Centralized (upper bound) & $1.000$ & --- & --- & --- \\
+FedAvg & $0.991 \pm 0.005$ & $0.948 \pm 0.030$ & $0.789 \pm 0.093$ & 15 \\
+FedProx & $0.931 \pm 0.007$ & $0.843 \pm 0.017$ & $0.663 \pm 0.071$ & 15 \\
+SCAFFOLD & $0.991 \pm 0.003$ & $0.981 \pm 0.008$ & $0.768 \pm 0.090$ & 15 \\
+FedNova & $0.991 \pm 0.005$ & $0.955 \pm 0.033$ & $0.755 \pm 0.073$ & 15 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -290,9 +290,42 @@ FedNova & XX.X & XX.X & XX.X & XXX \\
 
 \todo[inline]{Empirical measurement of the three heterogeneity sources described in Section~\ref{sec:fl}. Show how each source affects training behavior.}
 
+\begin{table}[h]
+\caption{Non-IID heterogeneity across the Dirichlet $\alpha$ sweep, measured as the mean Jensen--Shannon divergence between each deployment's marginal and the pooled marginal (seed-averaged, $K{=}5$, 3 seeds), with FedAvg accuracy. All three sources rise as $\alpha$ falls. Pearson correlation between overall heterogeneity and accuracy: FedAvg $-0.999$, FedProx $-0.920$, SCAFFOLD $-0.842$, FedNova $-0.985$.}
+\label{tab:heterogeneity}
+\centering
+\begin{tabular}{lccccc}
+\toprule
+$\alpha$ & Overall & Agent-pop. & Task & Threat & FedAvg acc. \\
+\midrule
+IID  & 0.003 & 0.007 & 0.001 & 0.001 & 0.991 \\
+5.0  & 0.009 & 0.015 & 0.007 & 0.005 & 0.983 \\
+1.0  & 0.033 & 0.047 & 0.026 & 0.027 & 0.948 \\
+0.5  & 0.053 & 0.079 & 0.054 & 0.027 & 0.933 \\
+0.1  & 0.168 & 0.206 & 0.198 & 0.101 & 0.789 \\
+0.05 & 0.245 & 0.302 & 0.260 & 0.173 & 0.718 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsection{Overhead}
 
 \todo[inline]{Per-hop overhead of the bundled semantic model execution; comparison against principal-based baseline.}
+
+\begin{table}[h]
+\caption{Per-hop substrate latency by stage (ms, mean over 500 iterations; frozen hashing encoder; agent execution excluded). The learned trust evaluation is the only material cost over the principal-based baseline; the crypto stages (verify/sign) dominate the remainder. With the real sentence-transformer encoder, trust\_eval is $\approx$16\,ms/hop (the encoder forward pass), motivating the frozen-encoder design.}
+\label{tab:overhead}
+\centering
+\begin{tabular}{lcccccrr}
+\toprule
+Config & verify & trust\_eval & transform & integrate & sign & Total & Hops/s \\
+\midrule
+Stub & 0.0060 & 0.0001 & 0.0001 & 0.0023 & 0.0058 & 0.0142 & 70{,}363 \\
+Baseline & 0.0060 & 0.0001 & 0.0001 & 0.0019 & 0.0060 & 0.0141 & 71{,}007 \\
+Ours & 0.0064 & 0.0588 & 0.0009 & 0.0019 & 0.0059 & 0.0740 & 13{,}519 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 % ============================================================
 \section{Discussion}
