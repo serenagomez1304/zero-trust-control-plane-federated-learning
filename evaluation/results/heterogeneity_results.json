@@ -1,0 +1,76 @@
+{
+  "sweep": [
+    {
+      "alpha": "IID",
+      "het_overall": 0.0037,
+      "het_agent_population": 0.0086,
+      "het_task_distribution": 0.0014,
+      "het_threat_profile": 0.001,
+      "acc_fedavg": 0.9975,
+      "acc_fedprox": 0.94,
+      "acc_scaffold": 0.995,
+      "acc_fednova": 0.9975
+    },
+    {
+      "alpha": 5.0,
+      "het_overall": 0.0159,
+      "het_agent_population": 0.0177,
+      "het_task_distribution": 0.0006,
+      "het_threat_profile": 0.0295,
+      "acc_fedavg": 0.9775,
+      "acc_fedprox": 0.885,
+      "acc_scaffold": 0.995,
+      "acc_fednova": 0.985
+    },
+    {
+      "alpha": 1.0,
+      "het_overall": 0.0628,
+      "het_agent_population": 0.0994,
+      "het_task_distribution": 0.0015,
+      "het_threat_profile": 0.0873,
+      "acc_fedavg": 1.0,
+      "acc_fedprox": 0.8675,
+      "acc_scaffold": 0.9725,
+      "acc_fednova": 1.0
+    },
+    {
+      "alpha": 0.5,
+      "het_overall": 0.0837,
+      "het_agent_population": 0.0948,
+      "het_task_distribution": 0.0018,
+      "het_threat_profile": 0.1544,
+      "acc_fedavg": 0.9825,
+      "acc_fedprox": 0.8725,
+      "acc_scaffold": 0.9525,
+      "acc_fednova": 0.955
+    },
+    {
+      "alpha": 0.1,
+      "het_overall": 0.0909,
+      "het_agent_population": 0.1051,
+      "het_task_distribution": 0.0009,
+      "het_threat_profile": 0.1666,
+      "acc_fedavg": 0.95,
+      "acc_fedprox": 0.85,
+      "acc_scaffold": 0.8125,
+      "acc_fednova": 0.93
+    },
+    {
+      "alpha": 0.05,
+      "het_overall": 0.1673,
+      "het_agent_population": 0.148,
+      "het_task_distribution": 0.004,
+      "het_threat_profile": 0.3499,
+      "acc_fedavg": 0.7325,
+      "acc_fedprox": 0.7575,
+      "acc_scaffold": 0.53,
+      "acc_fednova": 0.755
+    }
+  ],
+  "correlation": {
+    "fedavg": -0.842,
+    "fedprox": -0.948,
+    "scaffold": -0.906,
+    "fednova": -0.896
+  }
+}
